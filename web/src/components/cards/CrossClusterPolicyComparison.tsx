@@ -8,8 +8,9 @@
  */
 
 import { useState, useMemo } from 'react'
-import { CheckCircle2, XCircle, Minus, Info, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, XCircle, Minus, Info, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '../ui/Button'
 import { RefreshIndicator } from '../ui/RefreshIndicator'
 import { useCardLoadingState } from './CardDataContext'
 import { useKyverno } from '../../hooks/useKyverno'
@@ -43,6 +44,11 @@ export function CrossClusterPolicyComparison({ config: _config }: CardConfig) {
   const { selectedClusters: globalSelectedClusters, isAllClustersSelected, customFilter } = useGlobalFilters()
   const [localSelected, setLocalSelected] = useState<string[]>([])
   const [modalCluster, setModalCluster] = useState<string | null>(null)
+
+  /** Whether all clusters encountered errors (none succeeded) */
+  const hasError = !isLoading && !isRefreshing &&
+    Object.keys(kyvernoStatuses || {}).length > 0 &&
+    Object.values(kyvernoStatuses || {}).every(s => !!s.error)
 
   useCardLoadingState({ isLoading, hasAnyData: true, isDemoData })
 
@@ -137,6 +143,23 @@ export function CrossClusterPolicyComparison({ config: _config }: CardConfig) {
       case 'fail': return <XCircle className="w-3.5 h-3.5 text-red-400" />
       case 'na': return <Minus className="w-3.5 h-3.5 text-zinc-500" />
     }
+  }
+
+  if (hasError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2 p-4">
+        <AlertTriangle className="w-6 h-6 text-destructive opacity-70" />
+        <p className="text-destructive">Failed to load Kyverno data</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => refetch()}
+          className="text-xs text-blue-400 hover:text-blue-300"
+        >
+          Retry
+        </Button>
+      </div>
+    )
   }
 
   if (allClusters.length === 0) {
