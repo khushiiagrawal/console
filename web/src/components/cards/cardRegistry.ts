@@ -189,6 +189,8 @@ const KagentiSecurityPosture = safeLazy(() => _kagentiBundle, 'KagentiSecurityPo
 const KagentiTopology = safeLazy(() => _kagentiBundle, 'KagentiTopology')
 const CrossplaneManagedResources = safeLazy(() => import('./crossplane-status/CrossplaneManagedResources'), 'CrossplaneManagedResources')
 // Cloud Native Buildpacks card
+// ISO 27001 Security Audit checklist card
+const ISO27001Audit = safeLazy(() => import('./ISO27001Audit'), 'ISO27001Audit')
 const BuildpacksStatus = safeLazy(() => import('./buildpacks-status'), 'BuildpacksStatus')
 // Flatcar Container Linux card
 const FlatcarStatus = safeLazy(() => import('./flatcar_status'), 'FlatcarStatus')
@@ -354,6 +356,8 @@ const RAW_CARD_COMPONENTS: Record<string, CardComponent> = {
   kubescape_scan: KubescapeScan,
   policy_violations: PolicyViolations,
   compliance_score: ComplianceScore,
+  // ISO 27001 audit checklist
+  iso27001_audit: ISO27001Audit,
   // Cross-cluster compliance cards
   fleet_compliance_heatmap: FleetComplianceHeatmap,
   compliance_drift: ComplianceDrift,
@@ -635,6 +639,8 @@ export const DEMO_DATA_CARDS = new Set([
   // Note: kubescape_scan removed — now reports isDemoData via useKubescape hook
   // Note: policy_violations removed — now reports isDemoData via useKyverno hook
   // Note: compliance_score removed — now reports isDemoData via useKubescape/useKyverno hooks
+  // ISO 27001 audit checklist - static checklist, always demo
+  'iso27001_audit',
   // Security posture cards - demo until tools are detected
   'falco_alerts',
   // Data compliance cards - demo until tools are detected
@@ -754,6 +760,7 @@ const CARD_CHUNK_PRELOADERS: Record<string, () => Promise<unknown>> = {
   opa_policies: () => import('./OPAPolicies'),
   kyverno_policies: () => import('./KyvernoPolicies'),
   falco_alerts: () => import('./ComplianceCards'),
+  iso27001_audit: () => import('./ISO27001Audit'),
   trestle_scan: () => import('./TrestleScan'),
   trivy_scan: () => import('./ComplianceCards'),
   kubescape_scan: () => import('./ComplianceCards'),
@@ -1133,6 +1140,7 @@ export const CARD_DEFAULT_WIDTHS: Record<string, number> = {
   opa_policies: 6,
   kyverno_policies: 6,
   falco_alerts: 4,
+  iso27001_audit: 6,
   trestle_scan: 6,
   trivy_scan: 4,
   kubescape_scan: 4,

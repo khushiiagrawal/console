@@ -211,6 +211,7 @@ const CARD_CATALOG = {
     { type: 'kubecost_overview', title: 'Kubecost', description: 'Cost optimization and savings recommendations (demo)', visualization: 'bar' },
   ],
   'Security Posture': [
+    { type: 'iso27001_audit', title: 'ISO 27001 Audit', description: 'Interactive ISO 27001 compliance checklist with 70 Kubernetes security controls', visualization: 'status' },
     { type: 'opa_policies', title: 'OPA Gatekeeper', description: 'Policy enforcement with OPA Gatekeeper - shows installed status per cluster', visualization: 'status' },
     { type: 'kyverno_policies', title: 'Kyverno Policies', description: 'Kubernetes-native policy management with Kyverno', visualization: 'status' },
     { type: 'falco_alerts', title: 'Falco Alerts', description: 'Runtime security monitoring - syscall anomalies, container escapes, privilege escalation', visualization: 'events' },

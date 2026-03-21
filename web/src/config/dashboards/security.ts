@@ -65,18 +65,24 @@ export const securityDashboardConfig: UnifiedDashboardConfig = {
 
   cards: [
     {
+      id: 'security-0',
+      cardType: 'iso27001_audit',
+      position: { w: 6, h: 3, x: 0, y: 0 },
+    },
+    {
       id: 'security-1',
       cardType: 'security_issues',
-      position: { w: 6, h: 3, x: 0, y: 0 },
+      position: { w: 6, h: 3, x: 6, y: 0 },
     },
     {
       id: 'security-2',
       cardType: 'active_alerts',
-      position: { w: 6, h: 3, x: 6, y: 0 },
+      position: { w: 6, h: 3, x: 0, y: 3 },
     },
   ],
 
   availableCardTypes: [
+    'iso27001_audit',
     'security_issues',
     'active_alerts',
     'pod_issues',
