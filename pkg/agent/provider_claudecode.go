@@ -76,21 +76,15 @@ type ClaudeCodeProvider struct {
 }
 
 // NewClaudeCodeProvider creates a new Claude Code CLI provider.
-// The provider is disabled by default and requires KC_ENABLE_CLAUDE_CODE=true
-// to activate. This prevents the console from silently scanning for or
-// invoking the local Claude Code CLI without explicit user opt-in (#3159).
+// Detection runs unconditionally — the AgentApprovalDialog provides the
+// user opt-in before any CLI agent is actually invoked (#3159).
 func NewClaudeCodeProvider() *ClaudeCodeProvider {
 	provider := &ClaudeCodeProvider{}
-	if os.Getenv("KC_ENABLE_CLAUDE_CODE") == "true" {
-		provider.detectCLI()
-	} else {
-		log.Printf("Claude Code provider disabled (set KC_ENABLE_CLAUDE_CODE=true to enable)")
-	}
+	provider.detectCLI()
 	return provider
 }
 
 // detectCLI checks if claude CLI is installed and gets its version.
-// Only called when explicitly opted in via KC_ENABLE_CLAUDE_CODE=true.
 func (c *ClaudeCodeProvider) detectCLI() {
 	// Try to find claude in PATH first
 	path, err := exec.LookPath("claude")
@@ -148,7 +142,7 @@ func (c *ClaudeCodeProvider) Description() string {
 		return fmt.Sprintf("Local CLI with MCP tools - %s", c.version)
 	}
 	if c.cliPath == "" {
-		return "Local Claude Code CLI (disabled — set KC_ENABLE_CLAUDE_CODE=true)"
+		return "Local Claude Code CLI (not installed)"
 	}
 	return "Local Claude Code CLI with MCP tools and hooks"
 }

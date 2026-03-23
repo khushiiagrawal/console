@@ -90,7 +90,7 @@ export function AgentApprovalDialog({ isOpen, agents, onApprove, onCancel }: Age
           </div>
 
           <p className="text-xs text-muted-foreground">
-            This prompt is shown once. You can revoke access by clearing site data in your browser settings.
+            You can disable AI agents at any time from the <strong>AI Agent</strong> toggle in the top navbar.
           </p>
         </div>
       </BaseModal.Content>
