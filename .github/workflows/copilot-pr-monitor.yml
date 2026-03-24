@@ -179,7 +179,49 @@ jobs:
                 const netlifyFailed = netlifyCheckFailed || netlifyStatusFailed;
                 const buildUrl = netlifyCheckFailed?.details_url || netlifyStatusFailed?.target_url || 'See PR checks';
 
-                if (netlifyFailed) {
+                // 7. Update linked issue with ai-pr-active label
+              try {
+                const { data: timeline } = await github.rest.issues.listEventsForTimeline({
+                  ...context.repo,
+                  issue_number: prNumber,
+                  per_page: 50,
+                });
+                // PR body may reference "Fixes #NNN" — also check the PR body
+                const fixesMatch = (pr.body || '').match(/(?:fix|close|resolve)s?\s+#(\d+)/i);
+                const linkedIssueNumber = fixesMatch ? parseInt(fixesMatch[1], 10) : null;
+
+                if (linkedIssueNumber) {
+                  const { data: linkedIssue } = await github.rest.issues.get({
+                    ...context.repo,
+                    issue_number: linkedIssueNumber,
+                  });
+                  const issueLabels = linkedIssue.labels.map(l => l.name);
+
+                  if (!issueLabels.includes('ai-pr-active')) {
+                    await github.rest.issues.addLabels({
+                      ...context.repo,
+                      issue_number: linkedIssueNumber,
+                      labels: ['ai-pr-active'],
+                    });
+                    core.info(`  Issue #${linkedIssueNumber}: added ai-pr-active`);
+                  }
+
+                  // Remove ai-queued and ai-processing if still present
+                  for (const staleLabel of ['ai-queued', 'ai-processing']) {
+                    if (issueLabels.includes(staleLabel)) {
+                      await github.rest.issues.removeLabel({
+                        ...context.repo,
+                        issue_number: linkedIssueNumber,
+                        name: staleLabel,
+                      }).catch(() => {});
+                    }
+                  }
+                }
+              } catch (e) {
+                core.info(`  Issue link: ${e.message}`);
+              }
+
+              if (netlifyFailed) {
                   core.info(`  Build: FAILED`);
 
                   // Check if we already notified for this commit
