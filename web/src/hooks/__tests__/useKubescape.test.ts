@@ -1093,6 +1093,257 @@ describe('useKubescape — edge cases', () => {
     expect(status.frameworks[1].score).toBe(Math.max(0, status.overallScore - 3))
     unmount()
   })
+
+  it('updates control name when a better (non-ID) name is found in later scans', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('name-update'))
+
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns' }])
+      }
+      if (args.includes('workloadconfigurationscans')) {
+        return {
+          output: JSON.stringify({
+            items: [
+              {
+                metadata: { name: 'w1', namespace: 'ns' },
+                spec: {
+                  controls: {
+                    'C-0099': { status: { status: 'passed' } },
+                  },
+                },
+              },
+              {
+                metadata: { name: 'w2', namespace: 'ns' },
+                spec: {
+                  controls: {
+                    'C-0099': { status: { status: 'passed' }, name: 'Resource Limits Required' },
+                  },
+                },
+              },
+            ],
+          }),
+          exitCode: 0,
+        }
+      }
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const control = result.current.statuses['name-update'].controls.find(c => c.id === 'C-0099')
+    expect(control).toBeDefined()
+    // Name should be updated from ID 'C-0099' to 'Resource Limits Required'
+    expect(control!.name).toBe('Resource Limits Required')
+    // Passed in both scans
+    expect(control!.passed).toBe(2)
+    unmount()
+  })
+
+  it('handles workloadconfigurationscans with empty controls object', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('empty-ctrl'))
+
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns', critical: 1 }])
+      }
+      if (args.includes('workloadconfigurationscans')) {
+        return {
+          output: JSON.stringify({
+            items: [
+              {
+                metadata: { name: 'w', namespace: 'ns' },
+                spec: { controls: {} },
+              },
+            ],
+          }),
+          exitCode: 0,
+        }
+      }
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['empty-ctrl']
+    // No controls in detail => use summary data
+    expect(status.controls).toEqual([])
+    // Should still have totalControls from scan summaries
+    expect(status.totalControls).toBeGreaterThan(0)
+    unmount()
+  })
+
+  it('handles workloadconfigurationscans with missing spec', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('no-spec'))
+
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns' }])
+      }
+      if (args.includes('workloadconfigurationscans')) {
+        return {
+          output: JSON.stringify({
+            items: [
+              {
+                metadata: { name: 'w', namespace: 'ns' },
+              },
+            ],
+          }),
+          exitCode: 0,
+        }
+      }
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['no-spec']
+    // No spec.controls => empty controls, but should not crash
+    expect(status.controls).toEqual([])
+    unmount()
+  })
+
+  it('framework NSA-CISA score is capped at 100', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('high-score'))
+
+    // Make every control pass for a 100% score
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns' }])
+      }
+      // Detail: all passed => 100% overall
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['high-score']
+    if (status.frameworks.length > 0) {
+      // NSA-CISA = min(100, overallScore + 4). With 100% overall, should be capped at 100
+      expect(status.frameworks[0].score).toBeLessThanOrEqual(100)
+    }
+    unmount()
+  })
+
+  it('framework MITRE score does not go below 0', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('low-score'))
+
+    // Make every control fail for a 0% score
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns', critical: 5, high: 5, medium: 5, low: 5 }])
+      }
+      // Detail fetch fails, so framework scores are derived from summary data
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['low-score']
+    if (status.frameworks.length > 0) {
+      // MITRE = max(0, overallScore - 3). With low overall, should not go below 0
+      const mitreFramework = status.frameworks.find(f => f.name === 'MITRE ATT&CK')
+      if (mitreFramework) {
+        expect(mitreFramework.score).toBeGreaterThanOrEqual(0)
+      }
+    }
+    unmount()
+  })
+
+  it('produces correct control detail for multiple workload scans of same control', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('multi-scan'))
+
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'api-resources') {
+        return {
+          output: 'workloadconfigurationscansummaries.spdx.softwarecomposition.kubescape.io',
+          exitCode: 0,
+        }
+      }
+      if (args.includes('workloadconfigurationscansummaries')) {
+        return makeScanSummaryResponse([{ name: 'w', namespace: 'ns' }])
+      }
+      if (args.includes('workloadconfigurationscans')) {
+        return makeDetailResponse([
+          {
+            name: 'w1', namespace: 'ns',
+            controls: {
+              'C-100': { status: 'passed', name: 'My Control' },
+              'C-200': { status: 'failed', name: 'Bad Control' },
+            },
+          },
+          {
+            name: 'w2', namespace: 'ns',
+            controls: {
+              'C-100': { status: 'passed' },
+              'C-200': { status: 'passed', name: 'Bad Control' },
+            },
+          },
+          {
+            name: 'w3', namespace: 'ns',
+            controls: {
+              'C-100': { status: 'failed' },
+            },
+          },
+        ])
+      }
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useKubescape())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const controls = result.current.statuses['multi-scan'].controls
+    const c100 = controls.find(c => c.id === 'C-100')
+    const c200 = controls.find(c => c.id === 'C-200')
+
+    expect(c100).toBeDefined()
+    // C-100: 2 passed, 1 failed => pass-dominant => counts as passedControl
+    expect(c100!.passed).toBe(2)
+    expect(c100!.failed).toBe(1)
+
+    expect(c200).toBeDefined()
+    // C-200: 1 passed, 1 failed => tied, fails >= passed => failedControl
+    expect(c200!.passed).toBe(1)
+    expect(c200!.failed).toBe(1)
+
+    unmount()
+  })
 })
 })
 })

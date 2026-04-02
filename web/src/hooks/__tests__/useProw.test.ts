@@ -11,11 +11,22 @@ vi.mock('../../lib/constants/network', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>
   return { ...actual,
   FETCH_DEFAULT_TIMEOUT_MS: 10000,
+  KUBECTL_EXTENDED_TIMEOUT_MS: 60000,
 } })
 
-import { useProw } from '../useProw'
+vi.mock('../../lib/kubectlProxy', () => ({
+  kubectlProxy: {
+    exec: vi.fn().mockRejectedValue(new Error('not available')),
+  },
+}))
 
-describe('useProw', () => {
+vi.mock('../useDemoMode', () => ({
+  useDemoMode: () => ({ isDemoMode: false, toggleDemoMode: vi.fn(), setDemoMode: vi.fn() }),
+}))
+
+import { useProwJobs } from '../useProw'
+
+describe('useProwJobs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('not available'))
@@ -26,7 +37,7 @@ describe('useProw', () => {
   })
 
   it('returns expected shape', () => {
-    const { result } = renderHook(() => useProw())
+    const { result } = renderHook(() => useProwJobs())
     expect(result.current).toHaveProperty('isLoading')
   })
 })

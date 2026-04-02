@@ -1013,6 +1013,137 @@ describe('useTrivy — edge cases', () => {
     expect(status.scannedImages).toBe(0)
     unmount()
   })
+
+  it('handles reports with empty report object', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('empty-report'))
+
+    mockExec.mockImplementation(async (args: string[]) => {
+      if (args.includes('crd')) return { output: 'crd-ok', exitCode: 0 }
+      return {
+        output: JSON.stringify({
+          items: [
+            {
+              metadata: { name: 'v1', namespace: 'ns' },
+              report: {},
+            },
+          ],
+        }),
+        exitCode: 0,
+      }
+    })
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['empty-report']
+    expect(status.installed).toBe(true)
+    expect(status.totalReports).toBe(1)
+    // No artifact repo => not counted as image
+    expect(status.scannedImages).toBe(0)
+    // No summary => no vulns added
+    expect(status.vulnerabilities.critical).toBe(0)
+    // No repo => no image report added
+    expect(status.images).toHaveLength(0)
+    unmount()
+  })
+
+  it('aggregates unknownCount from report summaries', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('unknown-count'))
+
+    mockExec
+      .mockResolvedValueOnce({ output: 'crd-ok', exitCode: 0 })
+      .mockResolvedValueOnce(
+        makeVulnReportResponse([
+          { name: 'v1', namespace: 'ns', repo: 'app1', unknown: 7 },
+          { name: 'v2', namespace: 'ns', repo: 'app2', unknown: 3 },
+        ])
+      )
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const status = result.current.statuses['unknown-count']
+    const EXPECTED_UNKNOWN = 10
+    expect(status.vulnerabilities.unknown).toBe(EXPECTED_UNKNOWN)
+    unmount()
+  })
+
+  it('image reports include correct namespace and tag data', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('image-detail'))
+
+    mockExec
+      .mockResolvedValueOnce({ output: 'crd-ok', exitCode: 0 })
+      .mockResolvedValueOnce(
+        makeVulnReportResponse([
+          { name: 'v1', namespace: 'production', repo: 'myapp', tag: 'v2.1.0', critical: 1, high: 2, medium: 3, low: 4 },
+        ])
+      )
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const img = result.current.statuses['image-detail'].images[0]
+    expect(img.image).toBe('myapp')
+    expect(img.tag).toBe('v2.1.0')
+    expect(img.namespace).toBe('production')
+    expect(img.critical).toBe(1)
+    expect(img.high).toBe(2)
+    expect(img.medium).toBe(3)
+    expect(img.low).toBe(4)
+    unmount()
+  })
+
+  it('demo data has seeded variation across different cluster names', async () => {
+    mockUseDemoMode.mockReturnValue({ isDemoMode: true, toggleDemoMode: vi.fn(), setDemoMode: vi.fn() })
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const statuses = Object.values(result.current.statuses)
+    // Not all cluster demo data should be identical (seed-based variation)
+    const totalReportCounts = statuses.map(s => s.totalReports)
+    const allSame = totalReportCounts.every(c => c === totalReportCounts[0])
+    // With 3 default clusters of different name lengths, counts should differ
+    expect(allSame).toBe(false)
+    unmount()
+  })
+
+  it('installed flag is false when all clusters lack Trivy CRD', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('bare1', 'bare2'))
+
+    mockExec.mockResolvedValue({ output: '', exitCode: 1 })
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.installed).toBe(false)
+    expect(result.current.hasErrors).toBe(false)
+    unmount()
+  })
+
+  it('hasErrors is true only when error field is set (not when not installed)', async () => {
+    mockUseClusters.mockReturnValue(reachableClusters('err-cluster', 'no-trivy'))
+
+    mockExec.mockImplementation(async (args: string[], opts?: { context?: string }) => {
+      const cluster = opts?.context
+      if (cluster === 'err-cluster') {
+        if (args.includes('crd')) return { output: 'crd-ok', exitCode: 0 }
+        return { output: 'forbidden: insufficient permissions', exitCode: 1 }
+      }
+      // no-trivy: CRD check fails but no error field
+      return { output: '', exitCode: 1 }
+    })
+
+    const { result, unmount } = renderHook(() => useTrivy())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.hasErrors).toBe(true)
+    // err-cluster has an error
+    expect(result.current.statuses['err-cluster'].error).toBe('forbidden: insufficient permissions')
+    // no-trivy is just not installed, no error
+    expect(result.current.statuses['no-trivy'].error).toBeUndefined()
+    unmount()
+  })
 })
 })
 })

@@ -907,6 +907,285 @@ describe('isFailed threshold', () => {
     unmount()
   })
 })
+
+// ============================================================================
+// NEW TESTS — push toward 80% coverage
+// ============================================================================
+
+describe('useArgoCDHealth — additional coverage', () => {
+  it('falls back to mock health data when fetch rejects', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('fail'))
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(true)
+    expect(result.current.total).toBeGreaterThan(0)
+    expect(result.current.healthyPercent).toBeGreaterThan(0)
+    expect(result.current.error).toBeNull()
+    unmount()
+  })
+
+  it('uses real health data when API returns non-demo stats', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { healthy: 10, degraded: 2, progressing: 1, missing: 0, unknown: 0 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(false)
+    expect(result.current.stats.healthy).toBe(10)
+    expect(result.current.stats.degraded).toBe(2)
+    expect(result.current.total).toBe(13)
+    unmount()
+  })
+
+  it('falls back to mock when API indicates isDemoData in error body', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ isDemoData: true, error: 'not installed' }, 503)
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(true)
+    expect(result.current.total).toBeGreaterThan(0)
+    unmount()
+  })
+
+  it('computes healthyPercent correctly', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { healthy: 8, degraded: 0, progressing: 2, missing: 0, unknown: 0 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.healthyPercent).toBe(80) // 8/10 * 100
+    unmount()
+  })
+
+  it('healthyPercent is 0 when total is 0', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { healthy: 0, degraded: 0, progressing: 0, missing: 0, unknown: 0 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.healthyPercent).toBe(0)
+    expect(result.current.total).toBe(0)
+    unmount()
+  })
+
+  it('loads from cache on initialization', async () => {
+    localStorage.setItem('kc-argocd-health-cache', JSON.stringify({
+      data: { healthy: 5, degraded: 1, progressing: 0, missing: 0, unknown: 0 },
+      timestamp: Date.now(),
+      isDemoData: false,
+    }))
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    // Initial state from cache
+    expect(result.current.stats.healthy).toBe(5)
+    expect(result.current.stats.degraded).toBe(1)
+    unmount()
+  })
+
+  it('sets isLoading false with no clusters', async () => {
+    mockUseClusters.mockReturnValue({
+      deduplicatedClusters: [],
+      clusters: [],
+      isLoading: false,
+    })
+
+    const { result, unmount } = renderHook(() => useArgoCDHealth())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.total).toBe(0)
+    unmount()
+  })
+})
+
+describe('useArgoCDSyncStatus — additional coverage', () => {
+  it('falls back to mock sync data when fetch rejects', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('fail'))
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(true)
+    expect(result.current.total).toBeGreaterThan(0)
+    expect(result.current.syncedPercent).toBeGreaterThan(0)
+    unmount()
+  })
+
+  it('uses real sync data when API returns non-demo stats', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { synced: 15, outOfSync: 3, unknown: 1 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(false)
+    expect(result.current.stats.synced).toBe(15)
+    expect(result.current.stats.outOfSync).toBe(3)
+    expect(result.current.total).toBe(19)
+    unmount()
+  })
+
+  it('computes syncedPercent and outOfSyncPercent correctly', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { synced: 8, outOfSync: 2, unknown: 0 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.syncedPercent).toBe(80)
+    expect(result.current.outOfSyncPercent).toBe(20)
+    unmount()
+  })
+
+  it('syncedPercent is 0 when total is 0', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ stats: { synced: 0, outOfSync: 0, unknown: 0 }, isDemoData: false })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.syncedPercent).toBe(0)
+    expect(result.current.outOfSyncPercent).toBe(0)
+    unmount()
+  })
+
+  it('applies localClusterFilter when provided', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('fail'))
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus(['filtered-1', 'filtered-2']))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.isDemoData).toBe(true)
+    expect(result.current.total).toBeGreaterThan(0)
+    unmount()
+  })
+
+  it('loads from cache on initialization', async () => {
+    localStorage.setItem('kc-argocd-sync-cache', JSON.stringify({
+      data: { synced: 7, outOfSync: 2, unknown: 1 },
+      timestamp: Date.now(),
+      isDemoData: false,
+    }))
+
+    const { result, unmount } = renderHook(() => useArgoCDSyncStatus())
+    expect(result.current.stats.synced).toBe(7)
+    expect(result.current.stats.outOfSync).toBe(2)
+    unmount()
+  })
+})
+
+describe('useArgoCDTriggerSync — additional coverage', () => {
+  it('returns expected shape with all properties', () => {
+    const { result, unmount } = renderHook(() => useArgoCDTriggerSync())
+    expect(result.current).toHaveProperty('triggerSync')
+    expect(result.current).toHaveProperty('isSyncing')
+    expect(result.current).toHaveProperty('lastResult')
+    expect(result.current.isSyncing).toBe(false)
+    expect(result.current.lastResult).toBeNull()
+    unmount()
+  })
+
+  it('sends sync request to API and returns success result', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ success: true })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDTriggerSync())
+
+    let syncResult: unknown
+    await act(async () => {
+      syncResult = await result.current.triggerSync('my-app', 'argocd', 'prod-cluster')
+    })
+
+    expect(syncResult).toEqual({ success: true })
+    expect(result.current.isSyncing).toBe(false)
+    expect(result.current.lastResult).toEqual({ success: true })
+    unmount()
+  })
+
+  it('returns error from API when sync fails', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ success: false, error: 'app not found' })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDTriggerSync())
+
+    let syncResult: unknown
+    await act(async () => {
+      syncResult = await result.current.triggerSync('missing-app', 'argocd')
+    })
+
+    expect(syncResult).toEqual({ success: false, error: 'app not found' })
+    expect(result.current.lastResult).toEqual({ success: false, error: 'app not found' })
+    unmount()
+  })
+
+  it('falls back to simulated sync on network error (demo mode)', async () => {
+    vi.useFakeTimers()
+    vi.mocked(fetch).mockRejectedValue(new Error('network error'))
+
+    const { result, unmount } = renderHook(() => useArgoCDTriggerSync())
+
+    let syncResult: unknown
+    await act(async () => {
+      const promise = result.current.triggerSync('app', 'ns')
+      await vi.advanceTimersByTimeAsync(2000)
+      syncResult = await promise
+    })
+
+    expect(syncResult).toEqual({ success: true })
+    expect(result.current.isSyncing).toBe(false)
+    unmount()
+  })
+
+  it('triggerSync without cluster param uses empty string', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ success: true })
+    )
+
+    const { result, unmount } = renderHook(() => useArgoCDTriggerSync())
+
+    await act(async () => {
+      await result.current.triggerSync('app', 'ns')
+    })
+
+    const callBody = JSON.parse((vi.mocked(fetch).mock.calls[0][1]?.body as string) || '{}')
+    expect(callBody.cluster).toBe('')
+    unmount()
+  })
+})
+
+describe('cache helpers — additional coverage', () => {
+  it('saveToCache handles storage errors silently', async () => {
+    // Fill localStorage to simulate quota
+    const originalSetItem = localStorage.setItem.bind(localStorage)
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceeded')
+    })
+
+    // The hook should not throw even if cache write fails
+    vi.mocked(fetch).mockRejectedValue(new Error('fail'))
+    const { result, unmount } = renderHook(() => useArgoCDApplications())
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // Hook still works despite cache save failure
+    expect(result.current.isDemoData).toBe(true)
+    vi.mocked(localStorage.setItem).mockImplementation(originalSetItem)
+    unmount()
+  })
+})
 })
 })
 })

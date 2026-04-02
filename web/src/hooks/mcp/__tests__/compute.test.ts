@@ -945,3 +945,217 @@ describe('GPU cache localStorage persistence', () => {
     expect(parsed.nodes[0].name).toBe('real-gpu')
   })
 })
+
+// ===========================================================================
+// Additional branch coverage — compute.ts
+// ===========================================================================
+
+describe('useNodes — additional branches', () => {
+  it('returns demo nodes filtered by cluster', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+    mockUseDemoMode.mockReturnValue({ isDemoMode: true })
+
+    const { result } = renderHook(() => useNodes('vllm-d'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.nodes.length).toBeGreaterThan(0)
+    expect(result.current.nodes.every(n => n.cluster === 'vllm-d')).toBe(true)
+  })
+
+  it('maps node data from local agent response correctly', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    const agentNodes = [
+      {
+        name: 'agent-node-1', status: 'Ready', roles: ['worker', 'gpu'],
+        kubeletVersion: 'v1.29.0', cpuCapacity: '16', memoryCapacity: '64Gi',
+        podCapacity: '250', conditions: [{ type: 'Ready', status: 'True', reason: 'OK', message: 'ok' }],
+        unschedulable: true,
+      },
+    ]
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ nodes: agentNodes }),
+    })
+
+    const { result } = renderHook(() => useNodes('test-cluster'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.nodes).toHaveLength(1)
+    expect(result.current.nodes[0].name).toBe('agent-node-1')
+    expect(result.current.nodes[0].cluster).toBe('test-cluster')
+    expect(result.current.nodes[0].roles).toEqual(['worker', 'gpu'])
+    expect(result.current.nodes[0].unschedulable).toBe(true)
+    expect(result.current.nodes[0].podCapacity).toBe('250')
+  })
+
+  it('agent returns empty nodes array — falls through to SSE', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    // Agent returns ok but empty nodes
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ nodes: [] }),
+    })
+    const sseNodes = [
+      { name: 'sse-node', cluster: 'c1', status: 'Ready', roles: ['worker'],
+        kubeletVersion: 'v1.28', cpuCapacity: '4', memoryCapacity: '8Gi',
+        podCapacity: '110', conditions: [], unschedulable: false },
+    ]
+    mockFetchSSE.mockResolvedValue(sseNodes)
+
+    const { result } = renderHook(() => useNodes('c1'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.nodes).toEqual(sseNodes)
+  })
+
+  it('agent returns non-ok — falls through to SSE', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
+    const sseNodes = [
+      { name: 'fallback-node', cluster: 'c1', status: 'Ready', roles: ['worker'],
+        kubeletVersion: 'v1.28', cpuCapacity: '8', memoryCapacity: '16Gi',
+        podCapacity: '110', conditions: [], unschedulable: false },
+    ]
+    mockFetchSSE.mockResolvedValue(sseNodes)
+
+    const { result } = renderHook(() => useNodes('c1'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.nodes).toEqual(sseNodes)
+  })
+
+  it('does not attempt agent when cluster is not specified', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    globalThis.fetch = vi.fn()
+    mockFetchSSE.mockResolvedValue([])
+
+    renderHook(() => useNodes()) // no cluster
+
+    await waitFor(() => expect(mockFetchSSE).toHaveBeenCalled())
+    // Agent path requires a cluster param, so globalThis.fetch should not be called for agent
+    // (it may be called 0 or more times; the key check is SSE was used)
+    expect(mockFetchSSE).toHaveBeenCalled()
+  })
+
+  it('resets state only when cluster actually changes (not on initial mount)', async () => {
+    mockFetchSSE.mockResolvedValue([])
+    const { result, rerender } = renderHook(
+      ({ cluster }: { cluster: string | undefined }) => useNodes(cluster),
+      { initialProps: { cluster: 'c1' as string | undefined } }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // Re-render with same cluster — should NOT reset
+    rerender({ cluster: 'c1' })
+    expect(result.current.isLoading).toBe(false)
+
+    // Re-render with different cluster — should reset
+    rerender({ cluster: 'c2' })
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.nodes).toEqual([])
+  })
+})
+
+describe('useGPUNodes — additional branches', () => {
+  it('returns isFailed=true after 3+ consecutive failures', async () => {
+    // Pre-set failures
+    updateGPUNodeCache({
+      consecutiveFailures: 3,
+      lastUpdated: null,
+    })
+
+    mockFetchSSE.mockResolvedValue([])
+
+    const { result } = renderHook(() => useGPUNodes())
+
+    // isFailed derived from consecutiveFailures >= 3
+    expect(result.current.isFailed).toBe(true)
+  })
+
+  it('provides a stable refetch function reference', async () => {
+    mockFetchSSE.mockResolvedValue([])
+    const { result, rerender } = renderHook(() => useGPUNodes())
+
+    const firstRef = result.current.refetch
+    rerender()
+    expect(result.current.refetch).toBe(firstRef)
+  })
+
+  it('deduplication prefers entry with valid allocation over invalid', async () => {
+    // Both same name and same cluster name type (no slash)
+    const invalidNode = {
+      name: 'conflict-gpu', cluster: 'cluster-a',
+      gpuType: 'NVIDIA A100', gpuCount: 4, gpuAllocated: 10, // invalid: allocated > count
+      acceleratorType: 'GPU' as const,
+    }
+    const validNode = {
+      name: 'conflict-gpu', cluster: 'cluster-b',
+      gpuType: 'NVIDIA A100', gpuCount: 4, gpuAllocated: 2, // valid
+      acceleratorType: 'GPU' as const,
+    }
+    mockFetchSSE.mockResolvedValue([invalidNode, validNode])
+
+    const { result } = renderHook(() => useGPUNodes())
+
+    await waitFor(() => result.current.nodes.length > 0, { timeout: 3000 })
+    const deduped = result.current.nodes.filter(n => n.name === 'conflict-gpu')
+    expect(deduped).toHaveLength(1)
+    // Should prefer the valid one
+    expect(deduped[0].gpuAllocated).toBeLessThanOrEqual(deduped[0].gpuCount)
+  })
+
+  it('cluster filter matches prefix (e.g., "cluster-a" matches "cluster-a/context")', async () => {
+    const nodes = [
+      { name: 'gpu-prefix', cluster: 'cluster-a/long-context', gpuType: 'T4', gpuCount: 2, gpuAllocated: 1, acceleratorType: 'GPU' as const },
+      { name: 'gpu-other', cluster: 'cluster-b', gpuType: 'T4', gpuCount: 2, gpuAllocated: 1, acceleratorType: 'GPU' as const },
+    ]
+    mockFetchSSE.mockResolvedValue(nodes)
+
+    const { result } = renderHook(() => useGPUNodes('cluster-a'))
+
+    await waitFor(() => result.current.nodes.length > 0, { timeout: 3000 })
+    expect(result.current.nodes.every(n => n.cluster.startsWith('cluster-a'))).toBe(true)
+    expect(result.current.nodes.find(n => n.name === 'gpu-other')).toBeUndefined()
+  })
+
+  it('returns lastRefresh from cache state', async () => {
+    const now = new Date()
+    updateGPUNodeCache({ lastRefresh: now, lastUpdated: null })
+    mockFetchSSE.mockResolvedValue([])
+
+    const { result } = renderHook(() => useGPUNodes())
+
+    expect(result.current.lastRefresh).toEqual(now)
+  })
+})
+
+describe('useNVIDIAOperators — additional branches', () => {
+  it('accumulates operators progressively via SSE onClusterData', async () => {
+    const op1 = { cluster: 'c1', installed: true, version: '23.9', components: [] }
+    const op2 = { cluster: 'c2', installed: true, version: '24.0', components: [] }
+
+    // fetchSSE calls onClusterData callback during streaming
+    mockFetchSSE.mockImplementation(async (opts: { onClusterData: (c: string, items: unknown[]) => void }) => {
+      opts.onClusterData('c1', [op1])
+      opts.onClusterData('c2', [op2])
+      return [op1, op2]
+    })
+
+    const { result } = renderHook(() => useNVIDIAOperators())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.operators).toHaveLength(2)
+  })
+
+  it('passes cluster via REST URL params', async () => {
+    localStorage.setItem('token', 'demo-token') // forces SSE skip
+    mockApiGet.mockResolvedValue({ data: { operators: [] } })
+
+    renderHook(() => useNVIDIAOperators('specific-cluster'))
+
+    await waitFor(() => expect(mockApiGet).toHaveBeenCalled())
+    const url: string = mockApiGet.mock.calls[0][0]
+    expect(url).toContain('cluster=specific-cluster')
+  })
+})

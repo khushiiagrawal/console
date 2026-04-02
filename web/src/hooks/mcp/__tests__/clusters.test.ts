@@ -1281,3 +1281,263 @@ describe('useClusters — cache state fields', () => {
     expect(result.current.error).toBe(ERROR_MSG)
   })
 })
+
+// ===========================================================================
+// Additional branch coverage — clusters.ts
+// ===========================================================================
+
+describe('useClusters — deduplication and metric sharing', () => {
+  beforeEach(() => {
+    resetSharedState()
+    mockFullFetchClusters.mockClear()
+    mockConnectSharedWebSocket.mockClear()
+    mockUseDemoMode.mockReturnValue({ isDemoMode: false })
+  })
+
+  it('deduplicatedClusters removes duplicates sharing the same server URL', async () => {
+    const clusters: ClusterInfo[] = [
+      { name: 'short-name', context: 'short-name', server: 'https://api.example.com:6443' },
+      { name: 'default/api.example.com:6443/user', context: 'long-ctx', server: 'https://api.example.com:6443' },
+    ]
+    await act(async () => {
+      updateClusterCache({ clusters, isLoading: false })
+    })
+    const { result } = renderHook(() => useClusters())
+    expect(result.current.deduplicatedClusters).toHaveLength(1)
+    expect(result.current.deduplicatedClusters[0].name).toBe('short-name')
+  })
+
+  it('deduplicatedClusters retains clusters with different servers', async () => {
+    const clusters: ClusterInfo[] = [
+      { name: 'alpha', context: 'alpha', server: 'https://alpha.example.com' },
+      { name: 'beta', context: 'beta', server: 'https://beta.example.com' },
+      { name: 'gamma', context: 'gamma', server: 'https://gamma.example.com' },
+    ]
+    await act(async () => {
+      updateClusterCache({ clusters, isLoading: false })
+    })
+    const { result } = renderHook(() => useClusters())
+    expect(result.current.deduplicatedClusters).toHaveLength(3)
+  })
+
+  it('deduplicatedClusters shares metrics from long-name to short-name cluster', async () => {
+    const clusters: ClusterInfo[] = [
+      { name: 'short', context: 'short', server: 'https://same.server.com', cpuCores: undefined, memoryGB: undefined },
+      { name: 'default/long-context-path/user', context: 'long', server: 'https://same.server.com', cpuCores: 32, memoryGB: 128 },
+    ]
+    await act(async () => {
+      updateClusterCache({ clusters, isLoading: false })
+    })
+    const { result } = renderHook(() => useClusters())
+    // After metric sharing the deduplicated primary should have metrics
+    const deduped = result.current.deduplicatedClusters
+    expect(deduped).toHaveLength(1)
+    expect(deduped[0].cpuCores).toBe(32)
+    expect(deduped[0].memoryGB).toBe(128)
+  })
+
+  it('refetch() is a stable function reference', () => {
+    const { result, rerender } = renderHook(() => useClusters())
+    const firstRef = result.current.refetch
+    rerender()
+    expect(result.current.refetch).toBe(firstRef)
+  })
+
+  it('exposes consecutiveFailures and isFailed from cache', async () => {
+    const FAILURE_COUNT = 4
+    await act(async () => {
+      updateClusterCache({
+        clusters: [],
+        isLoading: false,
+        consecutiveFailures: FAILURE_COUNT,
+        isFailed: true,
+      })
+    })
+    const { result } = renderHook(() => useClusters())
+    expect(result.current.consecutiveFailures).toBe(FAILURE_COUNT)
+    expect(result.current.isFailed).toBe(true)
+  })
+})
+
+describe('useMCPStatus — additional branches', () => {
+  beforeEach(() => {
+    mockApiGet.mockReset()
+  })
+
+  it('sets status to null when fetch errors, even if previous status existed', async () => {
+    const initialStatus: MCPStatus = {
+      opsClient: { available: true, toolCount: 5 },
+      deployClient: { available: true, toolCount: 3 },
+    }
+    mockApiGet.mockResolvedValueOnce({ data: initialStatus })
+    const { result } = renderHook(() => useMCPStatus())
+    await waitFor(() => expect(result.current.status).toEqual(initialStatus))
+
+    // Subsequent poll errors
+    mockApiGet.mockRejectedValue(new Error('Network error'))
+    vi.useFakeTimers()
+    act(() => { vi.advanceTimersByTime(REFRESH_INTERVAL_MS) })
+    await act(() => Promise.resolve())
+    expect(result.current.error).toBe('MCP bridge not available')
+    expect(result.current.status).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('clears error when fetch succeeds after failure', async () => {
+    mockApiGet.mockRejectedValueOnce(new Error('err'))
+    const { result } = renderHook(() => useMCPStatus())
+    await waitFor(() => expect(result.current.error).toBe('MCP bridge not available'))
+
+    // Now succeed
+    const good: MCPStatus = {
+      opsClient: { available: true, toolCount: 1 },
+      deployClient: { available: false, toolCount: 0 },
+    }
+    mockApiGet.mockResolvedValue({ data: good })
+    vi.useFakeTimers()
+    act(() => { vi.advanceTimersByTime(REFRESH_INTERVAL_MS) })
+    await act(() => Promise.resolve())
+    expect(result.current.error).toBeNull()
+    expect(result.current.status).toEqual(good)
+    vi.useRealTimers()
+  })
+})
+
+describe('useClusterHealth — additional branches', () => {
+  const CLUSTER = 'branch-coverage-cluster'
+
+  beforeEach(() => {
+    resetSharedState()
+    mockFetchSingleClusterHealth.mockReset()
+    mockIsDemoMode.mockReturnValue(false)
+  })
+
+  afterEach(() => {
+    clearClusterFailure(CLUSTER)
+    vi.useRealTimers()
+  })
+
+  it('getCachedHealth returns null when cluster is undefined', async () => {
+    const { result } = renderHook(() => useClusterHealth(undefined))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.health).toBeNull()
+  })
+
+  it('getCachedHealth returns null when cluster has no nodeCount in cache', async () => {
+    // Populate cache with a cluster that has NO nodeCount
+    await act(async () => {
+      updateClusterCache({
+        clusters: [{ name: CLUSTER, context: CLUSTER, server: 'https://x.com' }],
+        isLoading: false,
+      })
+    })
+    mockFetchSingleClusterHealth.mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useClusterHealth(CLUSTER))
+    // Without nodeCount, getCachedHealth returns null so no initial data
+    expect(result.current.health).toBeNull()
+    expect(result.current.isLoading).toBe(true)
+  })
+
+  it('falls back to getCachedHealth when data is null and no prevHealth (transient)', async () => {
+    // Populate cache with cluster that has nodeCount
+    await act(async () => {
+      updateClusterCache({
+        clusters: [{
+          name: CLUSTER, context: CLUSTER, server: 'https://x.com',
+          nodeCount: 5, podCount: 30, cpuCores: 16, memoryGB: 64, storageGB: 200,
+          healthy: true, reachable: true,
+        }],
+        isLoading: false,
+      })
+    })
+    // Fetch returns null (transient failure), no prevHealth set yet
+    mockFetchSingleClusterHealth.mockResolvedValue(null)
+    const { result } = renderHook(() => useClusterHealth(CLUSTER))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    // Should have fallen back to getCachedHealth
+    expect(result.current.health).not.toBeNull()
+    expect(result.current.health?.nodeCount).toBe(5)
+  })
+
+  it('returns demo health for known demo clusters with correct metrics', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useClusterHealth('eks-prod-us-east-1'))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.health?.cluster).toBe('eks-prod-us-east-1')
+    expect(result.current.health?.nodeCount).toBe(12)
+    expect(result.current.health?.podCount).toBe(156)
+    expect(result.current.health?.cpuCores).toBe(96)
+  })
+
+  it('demo health includes memoryBytes and storageBytes computed from GB', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useClusterHealth('kind-local'))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const health = result.current.health
+    expect(health).not.toBeNull()
+    // kind-local: memoryGB=8 => memoryBytes=8*1024*1024*1024
+    const EXPECTED_MEM_BYTES = 8 * 1024 * 1024 * 1024
+    expect(health?.memoryBytes).toBe(EXPECTED_MEM_BYTES)
+    // storageGB=50 => storageBytes=50*1024*1024*1024
+    const EXPECTED_STORAGE_BYTES = 50 * 1024 * 1024 * 1024
+    expect(health?.storageBytes).toBe(EXPECTED_STORAGE_BYTES)
+  })
+
+  it('demo health returns empty issues array', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useClusterHealth('gke-staging'))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.health?.issues).toEqual([])
+  })
+
+  it('demo health defaults cluster to "default" when cluster is undefined', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useClusterHealth(undefined))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.health?.cluster).toBe('default')
+  })
+})
+
+describe('useClusters — demo mode transition', () => {
+  beforeEach(() => {
+    resetSharedState()
+    mockFullFetchClusters.mockClear()
+    mockConnectSharedWebSocket.mockClear()
+    mockTriggerAggressiveDetection.mockClear()
+  })
+
+  it('calls triggerAggressiveDetection when switching FROM demo to live', async () => {
+    mockUseDemoMode.mockReturnValue({ isDemoMode: true })
+    const { rerender } = renderHook(() => useClusters())
+    mockFullFetchClusters.mockClear()
+    mockTriggerAggressiveDetection.mockClear()
+
+    mockUseDemoMode.mockReturnValue({ isDemoMode: false })
+    await act(async () => {
+      rerender()
+    })
+
+    expect(mockTriggerAggressiveDetection).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls fullFetchClusters directly when switching TO demo mode', async () => {
+    mockUseDemoMode.mockReturnValue({ isDemoMode: false })
+    const { rerender } = renderHook(() => useClusters())
+    mockFullFetchClusters.mockClear()
+
+    mockUseDemoMode.mockReturnValue({ isDemoMode: true })
+    await act(async () => {
+      rerender()
+    })
+
+    expect(mockFullFetchClusters).toHaveBeenCalledTimes(1)
+  })
+})

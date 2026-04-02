@@ -1384,4 +1384,336 @@ describe('useLocalClusterTools', () => {
       expect(() => unmount()).not.toThrow()
     })
   })
+
+  // =========================================================================
+  // NEW TESTS — push toward 80% coverage
+  // =========================================================================
+  describe('vCluster operations (connected)', () => {
+    beforeEach(() => {
+      mockIsConnected.mockReturnValue(true)
+      mockIsDemoMode.mockReturnValue(false)
+      vi.mocked(fetch).mockImplementation(defaultConnectedFetch)
+    })
+
+    it('createVCluster sends correct POST body', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(jsonResponse({ message: 'vCluster created' }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.createVCluster('my-vc', 'tenant-ns')
+      })
+      expect(outcome).toEqual({ status: 'creating', message: 'vCluster created' })
+
+      const calls = vi.mocked(fetch).mock.calls
+      const createCall = calls.find(
+        c => String(c[0]).includes('/vcluster/create') && (c[1] as RequestInit)?.method === 'POST'
+      )
+      expect(createCall).toBeTruthy()
+      const body = JSON.parse((createCall![1] as RequestInit).body as string)
+      expect(body).toEqual({ name: 'my-vc', namespace: 'tenant-ns' })
+    })
+
+    it('createVCluster handles non-ok response', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(new Response('namespace not found', { status: 404 }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.createVCluster('bad-vc', 'missing-ns')
+      })
+      expect(outcome).toEqual({ status: 'error', message: 'namespace not found' })
+    })
+
+    it('createVCluster handles network error', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue(new Error('connection refused'))
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.createVCluster('vc', 'ns')
+      })
+      expect(outcome).toEqual({ status: 'error', message: 'connection refused' })
+      expect(result.current.error).toBe('connection refused')
+    })
+
+    it('createVCluster handles non-Error thrown', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue('string error')
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.createVCluster('vc', 'ns')
+      })
+      expect(outcome).toEqual({ status: 'error', message: 'Failed to create vCluster' })
+    })
+
+    it('connectVCluster sends correct POST and returns true on success', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(jsonResponse({ message: 'connected' }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.connectVCluster('dev-vc', 'vcluster')
+      })
+      expect(outcome).toBe(true)
+    })
+
+    it('connectVCluster handles non-ok response', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(new Response('connect failed', { status: 500 }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.connectVCluster('bad-vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('connect failed')
+    })
+
+    it('connectVCluster handles network error', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue(new Error('timeout'))
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.connectVCluster('vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('timeout')
+    })
+
+    it('disconnectVCluster sends correct POST and returns true on success', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(jsonResponse({ message: 'disconnected' }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.disconnectVCluster('dev-vc', 'vcluster')
+      })
+      expect(outcome).toBe(true)
+    })
+
+    it('disconnectVCluster handles non-ok response', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(new Response('not connected', { status: 400 }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.disconnectVCluster('bad-vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('not connected')
+    })
+
+    it('disconnectVCluster handles non-Error thrown', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue(42)
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.disconnectVCluster('vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('Failed to disconnect from vCluster')
+    })
+
+    it('deleteVCluster sends DELETE request and returns true on success', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(jsonResponse({ message: 'deleted' }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.deleteVCluster('old-vc', 'vcluster')
+      })
+      expect(outcome).toBe(true)
+      expect(result.current.isDeleting).toBeNull()
+    })
+
+    it('deleteVCluster handles non-ok response', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockImplementation(() =>
+        Promise.resolve(new Response('still running', { status: 409 }))
+      )
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.deleteVCluster('active-vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('still running')
+    })
+
+    it('deleteVCluster handles network error', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue(new Error('ECONNREFUSED'))
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.deleteVCluster('vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('ECONNREFUSED')
+    })
+
+    it('deleteVCluster handles non-Error thrown', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockRejectedValue(undefined)
+
+      let outcome: unknown
+      await act(async () => {
+        outcome = await result.current.deleteVCluster('vc', 'ns')
+      })
+      expect(outcome).toBe(false)
+      expect(result.current.error).toBe('Failed to delete vCluster')
+    })
+  })
+
+  describe('checkVClusterOnCluster', () => {
+    beforeEach(() => {
+      mockIsConnected.mockReturnValue(true)
+      mockIsDemoMode.mockReturnValue(false)
+      vi.mocked(fetch).mockImplementation(defaultConnectedFetch)
+    })
+
+    it('fetches vCluster check for a context and updates status', async () => {
+      vi.mocked(fetch).mockImplementation((url) => {
+        const urlStr = String(url)
+        if (urlStr.includes('/vcluster/check')) {
+          return Promise.resolve(jsonResponse({
+            context: 'prod-ctx',
+            name: 'prod-cluster',
+            hasCRD: true,
+            version: '0.21.0',
+            instances: 2,
+          }))
+        }
+        return defaultConnectedFetch(url)
+      })
+
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      await act(async () => {
+        await result.current.checkVClusterOnCluster('prod-ctx')
+      })
+
+      expect(result.current.vclusterClusterStatus.length).toBe(1)
+      expect(result.current.vclusterClusterStatus[0].context).toBe('prod-ctx')
+      expect(result.current.vclusterClusterStatus[0].hasCRD).toBe(true)
+    })
+
+    it('does not fetch when not connected', async () => {
+      mockIsConnected.mockReturnValue(false)
+      const { result } = renderHook(() => useLocalClusterTools())
+
+      await act(async () => {
+        await result.current.checkVClusterOnCluster('some-ctx')
+      })
+
+      expect(result.current.vclusterClusterStatus).toEqual([])
+    })
+
+    it('does not fetch when context is empty', async () => {
+      const { result } = renderHook(() => useLocalClusterTools())
+      const fetchBefore = vi.mocked(fetch).mock.calls.length
+
+      await act(async () => {
+        await result.current.checkVClusterOnCluster('')
+      })
+
+      // No additional fetch calls for empty context
+      const checkCalls = vi.mocked(fetch).mock.calls
+        .slice(fetchBefore)
+        .filter(c => String(c[0]).includes('/vcluster/check'))
+      expect(checkCalls).toHaveLength(0)
+    })
+
+    it('handles fetch error silently', async () => {
+      vi.mocked(fetch).mockImplementation((url) => {
+        if (String(url).includes('/vcluster/check')) {
+          return Promise.reject(new Error('network error'))
+        }
+        return defaultConnectedFetch(url)
+      })
+
+      const { result } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      await act(async () => {
+        await result.current.checkVClusterOnCluster('fail-ctx')
+      })
+
+      // Should not crash, status remains empty
+      expect(result.current.vclusterClusterStatus).toEqual([])
+    })
+  })
+
+  describe('auto-refresh on progress completion', () => {
+    it('refreshes clusters and vclusters when clusterProgress status is done', async () => {
+      mockIsConnected.mockReturnValue(true)
+      mockIsDemoMode.mockReturnValue(false)
+      vi.mocked(fetch).mockImplementation(defaultConnectedFetch)
+
+      // Start with progress null
+      mockProgress.mockReturnValue({ progress: null, dismiss: vi.fn() })
+      const { rerender } = renderHook(() => useLocalClusterTools())
+      await waitFor(() => {})
+
+      vi.mocked(fetch).mockClear()
+      vi.mocked(fetch).mockImplementation(defaultConnectedFetch)
+
+      // Set progress to 'done'
+      mockProgress.mockReturnValue({ progress: { status: 'done' }, dismiss: vi.fn() })
+      rerender()
+
+      await waitFor(() => {
+        // After progress changes to done, fetchClusters and fetchVClusters should fire
+        const urls = vi.mocked(fetch).mock.calls.map(c => String(c[0]))
+        expect(urls.some(u => u.includes('/local-clusters'))).toBe(true)
+      })
+    })
+  })
 })

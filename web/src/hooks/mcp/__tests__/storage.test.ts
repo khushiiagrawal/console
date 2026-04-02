@@ -994,3 +994,252 @@ describe('COMMON_RESOURCE_TYPES', () => {
     }
   })
 })
+
+// ===========================================================================
+// Additional branch coverage — storage.ts
+// ===========================================================================
+
+describe('usePVCs — additional branches', () => {
+  it('returns the complete return shape with all expected keys', async () => {
+    mockApiGet.mockResolvedValue({ data: { pvcs: [] } })
+    const { result } = renderHook(() => usePVCs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current).toHaveProperty('pvcs')
+    expect(result.current).toHaveProperty('isLoading')
+    expect(result.current).toHaveProperty('isRefreshing')
+    expect(result.current).toHaveProperty('lastUpdated')
+    expect(result.current).toHaveProperty('error')
+    expect(result.current).toHaveProperty('refetch')
+    expect(result.current).toHaveProperty('consecutiveFailures')
+    expect(result.current).toHaveProperty('isFailed')
+    expect(result.current).toHaveProperty('lastRefresh')
+  })
+
+  it('agent endpoint non-ok falls through to kubectl proxy', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    mockClusterCacheRef.clusters = [
+      { name: 'cluster-y', context: 'ctx-y', reachable: true },
+    ]
+
+    // Agent returns non-ok
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
+
+    // kubectl proxy succeeds
+    const kubePvc = { name: 'kube-pvc', namespace: 'default', status: 'Bound', capacity: '5Gi', storageClass: 'gp2' }
+    mockKubectlProxy.getPVCs.mockResolvedValue([kubePvc])
+
+    const { result } = renderHook(() => usePVCs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(mockKubectlProxy.getPVCs).toHaveBeenCalled()
+    expect(result.current.pvcs).toHaveLength(1)
+    expect(result.current.pvcs[0].cluster).toBe('cluster-y')
+  })
+
+  it('both agent and kubectl proxy fail — falls through to REST API', async () => {
+    mockIsAgentUnavailable.mockReturnValue(false)
+    mockClusterCacheRef.clusters = [
+      { name: 'cluster-z', context: 'ctx-z', reachable: true },
+    ]
+
+    // Agent returns non-ok
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 })
+    // kubectl proxy also fails
+    mockKubectlProxy.getPVCs.mockRejectedValue(new Error('kubectl failed'))
+
+    // REST API succeeds
+    const restPvc = { name: 'rest-pvc', namespace: 'ns', cluster: 'cluster-z', status: 'Bound', capacity: '10Gi' }
+    mockApiGet.mockResolvedValue({ data: { pvcs: [restPvc] } })
+
+    const { result } = renderHook(() => usePVCs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.pvcs).toHaveLength(1)
+    expect(result.current.pvcs[0].name).toBe('rest-pvc')
+  })
+
+  it('preserves stale data on error when cache exists', async () => {
+    const initialPvc = { name: 'cached-pvc', namespace: 'ns', cluster: 'c1', status: 'Bound', capacity: '10Gi', storageClass: 'gp3' }
+    mockApiGet.mockResolvedValueOnce({ data: { pvcs: [initialPvc] } })
+
+    const { result } = renderHook(() => usePVCs())
+    await waitFor(() => expect(result.current.pvcs).toHaveLength(1))
+
+    // Next fetch fails
+    mockApiGet.mockRejectedValue(new Error('server error'))
+    await act(async () => { result.current.refetch() })
+
+    // Should preserve cached data, not clear it
+    await waitFor(() => expect(result.current.consecutiveFailures).toBeGreaterThanOrEqual(1))
+    expect(result.current.pvcs).toHaveLength(1)
+    expect(result.current.pvcs[0].name).toBe('cached-pvc')
+  })
+
+  it('sets lastUpdated and lastRefresh after successful fetch', async () => {
+    mockApiGet.mockResolvedValue({ data: { pvcs: [{ name: 'p', namespace: 'n', status: 'Bound' }] } })
+
+    const { result } = renderHook(() => usePVCs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.lastUpdated).not.toBeNull()
+    expect(result.current.lastRefresh).not.toBeNull()
+  })
+
+  it('demo mode sets lastUpdated on successful demo data load', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+    mockUseDemoMode.mockReturnValue({ isDemoMode: true })
+
+    const { result } = renderHook(() => usePVCs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.lastUpdated).not.toBeNull()
+  })
+})
+
+describe('usePVs — additional branches', () => {
+  it('returns the complete return shape with all expected keys', async () => {
+    mockApiGet.mockResolvedValue({ data: { pvs: [] } })
+    const { result } = renderHook(() => usePVs())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current).toHaveProperty('pvs')
+    expect(result.current).toHaveProperty('isLoading')
+    expect(result.current).toHaveProperty('isRefreshing')
+    expect(result.current).toHaveProperty('error')
+    expect(result.current).toHaveProperty('refetch')
+    expect(result.current).toHaveProperty('consecutiveFailures')
+    expect(result.current).toHaveProperty('isFailed')
+  })
+
+  it('resets consecutiveFailures to 0 on successful fetch after errors', async () => {
+    // First: fail
+    mockApiGet.mockRejectedValueOnce(new Error('fail'))
+    const { result } = renderHook(() => usePVs())
+    await waitFor(() => expect(result.current.consecutiveFailures).toBe(1))
+
+    // Then: succeed
+    mockApiGet.mockResolvedValue({ data: { pvs: [{ name: 'pv', status: 'Available' }] } })
+    await act(async () => { result.current.refetch() })
+    await waitFor(() => expect(result.current.consecutiveFailures).toBe(0))
+    expect(result.current.isFailed).toBe(false)
+  })
+
+  it('sets isRefreshing during fetch and clears after', async () => {
+    let resolvePromise: (v: unknown) => void
+    mockApiGet.mockReturnValue(new Promise((resolve) => { resolvePromise = resolve }))
+
+    const { result } = renderHook(() => usePVs())
+
+    // Initially loading
+    expect(result.current.isLoading).toBe(true)
+
+    // Resolve the API call
+    await act(async () => { resolvePromise!({ data: { pvs: [] } }) })
+
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.isRefreshing).toBe(false)
+  })
+})
+
+describe('useResourceQuotas — additional branches', () => {
+  it('filters demo quotas by both cluster and namespace', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useResourceQuotas('prod-east', 'production'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.resourceQuotas.length).toBeGreaterThan(0)
+    expect(result.current.resourceQuotas.every(q =>
+      q.cluster === 'prod-east' && q.namespace === 'production'
+    )).toBe(true)
+  })
+
+  it('handles API returning undefined resourceQuotas field', async () => {
+    mockApiGet.mockResolvedValue({ data: {} })
+
+    const { result } = renderHook(() => useResourceQuotas())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.resourceQuotas).toEqual([])
+  })
+
+  it('provides a refetch function that can be called multiple times', async () => {
+    mockApiGet.mockResolvedValue({ data: { resourceQuotas: [] } })
+    const { result } = renderHook(() => useResourceQuotas())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const callsBefore = mockApiGet.mock.calls.length
+
+    await act(async () => { result.current.refetch() })
+    await act(async () => { result.current.refetch() })
+
+    expect(mockApiGet.mock.calls.length).toBeGreaterThan(callsBefore)
+  })
+})
+
+describe('useLimitRanges — additional branches', () => {
+  it('filters demo limit ranges by both cluster and namespace', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useLimitRanges('prod-east', 'production'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.limitRanges.length).toBeGreaterThan(0)
+    expect(result.current.limitRanges.every(lr =>
+      lr.cluster === 'prod-east' && lr.namespace === 'production'
+    )).toBe(true)
+  })
+
+  it('handles API returning undefined limitRanges field', async () => {
+    mockApiGet.mockResolvedValue({ data: {} })
+
+    const { result } = renderHook(() => useLimitRanges())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.limitRanges).toEqual([])
+  })
+
+  it('returns empty array when demo mode filter produces no matches', async () => {
+    mockIsDemoMode.mockReturnValue(true)
+
+    const { result } = renderHook(() => useLimitRanges('nonexistent-cluster', 'nonexistent-ns'))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.limitRanges).toEqual([])
+    expect(result.current.error).toBeNull()
+  })
+})
+
+describe('subscribeStorageCache', () => {
+  it('returns an unsubscribe function', () => {
+    const callback = vi.fn()
+    const unsubscribe = subscribeStorageCache(callback)
+    expect(typeof unsubscribe).toBe('function')
+    unsubscribe()
+  })
+
+  it('does not call callback after unsubscribe', () => {
+    const callback = vi.fn()
+    const unsubscribe = subscribeStorageCache(callback)
+    unsubscribe()
+    // After unsubscribing, the callback should not be notified
+    expect(callback).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteResourceQuota', () => {
+  it('calls DELETE with correct params', async () => {
+    await deleteResourceQuota('cluster-x', 'namespace-y', 'quota-z')
+    expect(mockApiDelete).toHaveBeenCalledWith(
+      '/api/mcp/resourcequotas?cluster=cluster-x&namespace=namespace-y&name=quota-z'
+    )
+  })
+
+  it('propagates API error on failure', async () => {
+    mockApiDelete.mockRejectedValue(new Error('403 Forbidden'))
+    await expect(deleteResourceQuota('c', 'ns', 'q')).rejects.toThrow('403 Forbidden')
+  })
+})

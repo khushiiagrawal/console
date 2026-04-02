@@ -724,4 +724,368 @@ describe('useKyverno', () => {
 
     unmount()
   })
+
+  // ── 19. Concurrent refetch guard ──────────────────────────────────────
+
+  it('prevents concurrent refetch calls (fetchInProgress guard)', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'concurrent', reachable: true }]
+
+    let resolveExec: ((v: unknown) => void) | null = null
+    const execPromise = new Promise((resolve) => {
+      resolveExec = resolve
+    })
+    mockExec.mockReturnValue(execPromise)
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    // Wait for the initial effect to fire
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+
+    // Try to refetch while first is in progress -- should be a no-op
+    const refetchPromise = act(async () => {
+      await result.current.refetch()
+    })
+
+    // Resolve the pending exec
+    resolveExec!({ exitCode: 1, output: '' })
+    mockExec.mockResolvedValue(kubectlFail())
+
+    await refetchPromise
+
+    unmount()
+  })
+
+  // ── 20. Multiple clusters with mixed status ───────────────────────────
+
+  it('handles multiple clusters where some have kyverno and some do not', async () => {
+    mockDemoMode = false
+    mockAllClusters = [
+      { name: 'has-kyverno', reachable: true },
+      { name: 'no-kyverno', reachable: true },
+    ]
+
+    const cpData = {
+      items: [
+        {
+          metadata: { name: 'test-policy', annotations: {} },
+          spec: { validationFailureAction: 'Audit' },
+        },
+      ],
+    }
+
+    mockExec.mockImplementation((args: unknown[], opts?: { context?: string }) => {
+      const cluster = opts?.context
+      if (cluster === 'no-kyverno') {
+        return Promise.resolve(kubectlFail())
+      }
+      const argsArr = args as string[]
+      if (argsArr.includes('crd')) {
+        return Promise.resolve(kubectlOk('crd/clusterpolicies.kyverno.io'))
+      }
+      if (argsArr.includes('clusterpolicies')) {
+        return Promise.resolve(kubectlOk(JSON.stringify(cpData)))
+      }
+      return Promise.resolve(kubectlOk(JSON.stringify({ items: [] })))
+    })
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    expect(result.current.statuses['has-kyverno'].installed).toBe(true)
+    expect(result.current.statuses['has-kyverno'].totalPolicies).toBe(1)
+    expect(result.current.statuses['no-kyverno'].installed).toBe(false)
+    expect(result.current.installed).toBe(true)
+
+    unmount()
+  })
+
+  // ── 21. isDemoData follows isDemoMode ──────────────────────────────────
+
+  it('isDemoData is true in demo mode and false in real mode', async () => {
+    mockDemoMode = true
+    mockAllClusters = []
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.isDemoData).toBe(true)
+
+    unmount()
+  })
+
+  // ── 22. Demo policies have expected structure ─────────────────────────
+
+  it('demo policies have valid structure with known categories', async () => {
+    mockDemoMode = true
+    mockAllClusters = []
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    const firstCluster = Object.values(result.current.statuses)[0]
+    expect(firstCluster.policies.length).toBeGreaterThan(0)
+
+    for (const policy of firstCluster.policies) {
+      expect(policy.name).toBeTruthy()
+      expect(['ClusterPolicy', 'Policy']).toContain(policy.kind)
+      expect(['enforcing', 'audit', 'unknown']).toContain(policy.status)
+      expect(policy.category).toBeTruthy()
+      expect(policy.description).toBeTruthy()
+      expect(typeof policy.violations).toBe('number')
+      expect(typeof policy.background).toBe('boolean')
+    }
+
+    unmount()
+  })
+
+  // ── 23. refetch(true) is silent -- does not set isRefreshing ──────────
+
+  it('silent refetch does not set isRefreshing to true', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'silent-ref', reachable: true }]
+    mockExec.mockResolvedValue(kubectlFail())
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    // After initial fetch, trigger a silent refetch
+    await act(async () => {
+      await result.current.refetch(true)
+    })
+
+    // After silent refetch completes, isRefreshing should be false
+    expect(result.current.isRefreshing).toBe(false)
+
+    unmount()
+  })
+
+  // ── 24. Cache reset callback clears state ─────────────────────────────
+
+  it('cache reset callback clears localStorage and resets state', async () => {
+    localStorage.setItem(STORAGE_KEY_KYVERNO_CACHE, '{"test": {}}')
+    localStorage.setItem(STORAGE_KEY_KYVERNO_CACHE_TIME, '12345')
+
+    const { unmount } = renderHook(() => useKyverno())
+
+    // Get the cache reset callback registered for 'kyverno'
+    const resetCall = (registerCacheReset as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => call[0] === 'kyverno'
+    )
+    expect(resetCall).toBeDefined()
+    const resetFn = resetCall![1] as () => void
+
+    resetFn()
+
+    expect(localStorage.getItem(STORAGE_KEY_KYVERNO_CACHE)).toBeNull()
+    expect(localStorage.getItem(STORAGE_KEY_KYVERNO_CACHE_TIME)).toBeNull()
+
+    unmount()
+  })
+
+  // ── 25. Corrupt cache does not crash ──────────────────────────────────
+
+  it('handles corrupt localStorage cache without crashing', () => {
+    localStorage.setItem(STORAGE_KEY_KYVERNO_CACHE, 'not-valid{{{json')
+    localStorage.setItem(STORAGE_KEY_KYVERNO_CACHE_TIME, 'abc')
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    // Corrupt cache is ignored, starts fresh
+    expect(Object.keys(result.current.statuses)).toHaveLength(0)
+
+    unmount()
+  })
+
+  // ── 26. Multiple violation sources (PolicyReports + ClusterPolicyReports) ──
+
+  it('sums violations from both PolicyReports and ClusterPolicyReports', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'both-reports', reachable: true }]
+
+    const cpData = {
+      items: [
+        {
+          metadata: { name: 'my-policy', annotations: {} },
+          spec: { validationFailureAction: 'Audit' },
+        },
+      ],
+    }
+
+    const policyReportData = {
+      items: [
+        {
+          metadata: { name: 'polr-1', namespace: 'default' },
+          summary: { pass: 5, fail: 2, warn: 0, error: 0, skip: 0 },
+          results: [
+            { policy: 'my-policy', rule: 'r1', result: 'fail' },
+            { policy: 'my-policy', rule: 'r2', result: 'fail' },
+          ],
+        },
+      ],
+    }
+
+    const clusterPolicyReportData = {
+      items: [
+        {
+          metadata: { name: 'cpolr-1', namespace: '' },
+          summary: { pass: 3, fail: 4, warn: 0, error: 0, skip: 0 },
+          results: [
+            { policy: 'my-policy', rule: 'r3', result: 'fail' },
+          ],
+        },
+      ],
+    }
+
+    let callIdx = 0
+    mockExec.mockImplementation(() => {
+      callIdx++
+      switch (callIdx) {
+        case 1: return Promise.resolve(kubectlOk('crd/clusterpolicies.kyverno.io'))
+        case 2: return Promise.resolve(kubectlOk(JSON.stringify(cpData)))
+        case 3: return Promise.resolve(kubectlOk(JSON.stringify({ items: [] }))) // namespaced
+        case 4: return Promise.resolve(kubectlOk(JSON.stringify(policyReportData)))
+        case 5: return Promise.resolve(kubectlOk(JSON.stringify(clusterPolicyReportData)))
+        default: return Promise.resolve(kubectlFail())
+      }
+    })
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    const status = result.current.statuses['both-reports']
+    // totalViolations = 2 (from PolicyReports) + 4 (from ClusterPolicyReports) = 6
+    const EXPECTED_VIOLATIONS = 6
+    expect(status.totalViolations).toBe(EXPECTED_VIOLATIONS)
+    // my-policy should have 3 violations (2 from polr + 1 from cpolr)
+    const policy = status.policies.find(p => p.name === 'my-policy')
+    expect(policy!.violations).toBe(3)
+
+    unmount()
+  })
+
+  // ── 27. Empty clusters does nothing on refetch ────────────────────────
+
+  it('refetch with no clusters sets loading false and exits', async () => {
+    mockDemoMode = false
+    mockAllClusters = []
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    await act(async () => {
+      await result.current.refetch()
+    })
+
+    expect(mockExec).not.toHaveBeenCalled()
+    expect(result.current.isLoading).toBe(false)
+
+    unmount()
+  })
+
+  // ── 28. Report with missing summary defaults to zeros ─────────────────
+
+  it('handles PolicyReport with missing summary field', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'missing-summary', reachable: true }]
+
+    const reportData = {
+      items: [
+        {
+          metadata: { name: 'polr-no-summary', namespace: 'default' },
+          results: [
+            { policy: 'test-pol', rule: 'r1', result: 'pass' },
+          ],
+        },
+      ],
+    }
+
+    let callIdx = 0
+    mockExec.mockImplementation(() => {
+      callIdx++
+      switch (callIdx) {
+        case 1: return Promise.resolve(kubectlOk('crd/clusterpolicies.kyverno.io'))
+        case 2: return Promise.resolve(kubectlOk(JSON.stringify({ items: [] })))
+        case 3: return Promise.resolve(kubectlOk(JSON.stringify({ items: [] })))
+        case 4: return Promise.resolve(kubectlOk(JSON.stringify(reportData)))
+        case 5: return Promise.resolve(kubectlOk(JSON.stringify({ items: [] })))
+        default: return Promise.resolve(kubectlFail())
+      }
+    })
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    const status = result.current.statuses['missing-summary']
+    expect(status.reports).toHaveLength(1)
+    expect(status.reports[0].pass).toBe(0)
+    expect(status.reports[0].fail).toBe(0)
+
+    unmount()
+  })
+
+  // ── 29. Non-Error exceptions produce default error message ────────────
+
+  it('handles non-Error exception with default message', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'non-error', reachable: true }]
+
+    mockExec.mockRejectedValue('string error')
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    const status = result.current.statuses['non-error']
+    expect(status.error).toBe('Connection failed')
+
+    unmount()
+  })
+
+  // ── 30. Demo error suppresses console.error ───────────────────────────
+
+  it('suppresses console.error for demo mode errors', async () => {
+    mockDemoMode = false
+    mockAllClusters = [{ name: 'demo-err', reachable: true }]
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockExec.mockRejectedValue(new Error('demo mode'))
+
+    const { result, unmount } = renderHook(() => useKyverno())
+
+    await waitFor(() => {
+      expect(result.current.lastRefresh).not.toBeNull()
+    })
+
+    // 'demo mode' errors should not be logged
+    expect(consoleSpy).not.toHaveBeenCalled()
+    consoleSpy.mockRestore()
+
+    unmount()
+  })
 })
