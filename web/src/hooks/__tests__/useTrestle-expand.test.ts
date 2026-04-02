@@ -313,5 +313,3 @@ describe('useTrestle — expanded edge cases', () => {
     expect(localStorage.getItem(STORAGE_KEY_TRESTLE_CACHE)).not.toBeNull()
   })
 })
-})
-})

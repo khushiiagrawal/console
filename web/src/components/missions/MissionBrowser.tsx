@@ -79,9 +79,7 @@ const CATEGORY_FILTERS = [
   'Custom',
 ] as const
 
-const DEFAULT_SIDEBAR_WIDTH = 280
-const MIN_SIDEBAR_WIDTH = 180
-const MAX_SIDEBAR_WIDTH = 500
+const SIDEBAR_WIDTH = 280
 const WATCHED_REPOS_KEY = 'kc_mission_watched_repos'
 const WATCHED_PATHS_KEY = 'kc_mission_watched_paths'
 
@@ -149,10 +147,6 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const [viewMode, setViewMode] = useState<ViewMode>(isMobile ? 'list' : 'grid')
   const [showFilters, setShowFilters] = useState(!isMobile)
-
-  // Sidebar resize
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
-  const isDraggingRef = useRef(false)
 
   // Tree state
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([])
@@ -600,7 +594,7 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
             }))
         } else if (node.source === 'github') {
           if (nodeId === 'github') {
-            // Root "My Repositories" — list user's repos
+            // Root "My Repositories" node — list user's repos
             const { data: repos } = await api.get<Array<{ name: string; full_name: string }>>(
               '/api/github/repos?hasMissionsDir=true'
             )
@@ -614,7 +608,7 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
               description: r.full_name,
             }))
           } else {
-            // Child repo node — list repo contents via GitHub Contents API
+            // Specific repo node — list repo contents via GitHub Contents API
             const repoPath = node.path
             const { data: ghEntries } = await api.get<Array<{ name: string; path: string; type: string; size?: number }>>(
               `/api/github/repos/${repoPath}/contents`
@@ -1399,8 +1393,8 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
       <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar — file tree (hidden on mobile, shown on md+) */}
         <div
-          className="hidden md:flex flex-col border-r border-border bg-card overflow-y-auto relative"
-          style={{ width: sidebarWidth, minWidth: MIN_SIDEBAR_WIDTH, maxWidth: MAX_SIDEBAR_WIDTH }}
+          className="hidden md:flex flex-col border-r border-border bg-card overflow-y-auto"
+          style={{ width: SIDEBAR_WIDTH, minWidth: SIDEBAR_WIDTH }}
         >
           <div className="p-3 space-y-1">
             {treeNodes.map((node) => (
@@ -1425,26 +1419,25 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
                       showToast(`Removed path "${child.path}"`, 'info')
                     } : undefined}
                     onRefresh={(node.id === 'github' || node.id === 'local') ? (child) => {
-                      // Reset node to unloaded state and collapse
+                      // Mark node as unloaded to force re-fetch
                       setTreeNodes((prev) =>
                         updateNodeInTree(prev, child.id, {
                           loaded: false,
                           loading: false,
                           children: [],
-                          isEmpty: false,
                         })
                       )
+                      // Collapse and re-expand to trigger load
                       setExpandedNodes((prev) => {
                         const next = new Set(prev)
                         next.delete(child.id)
                         return next
                       })
-                      // Re-expand with a fresh node reference so toggleNode sees loaded=false
+                      // Re-expand after a tick to trigger the useEffect
                       setTimeout(() => {
-                        const freshNode: TreeNode = { ...child, loaded: false, loading: false, children: [] }
-                        toggleNode(freshNode)
-                        selectNode(freshNode)
-                      }, 100)
+                        toggleNode(child)
+                        selectNode(child)
+                      }, 50)
                     } : undefined}
                     onAdd={node.id === 'github' ? () => setAddingRepo(!addingRepo)
                       : node.id === 'local' ? () => setAddingPath(!addingPath)
@@ -1544,30 +1537,6 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
           </div>
         </div>
 
-        {/* Sidebar resize handle */}
-        <div
-          className="hidden md:block w-1 cursor-col-resize hover:bg-purple-500/30 active:bg-purple-500/50 transition-colors flex-shrink-0"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            isDraggingRef.current = true
-            const startX = e.clientX
-            const startWidth = sidebarWidth
-            const onMouseMove = (moveEvent: MouseEvent) => {
-              if (!isDraggingRef.current) return
-              const delta = moveEvent.clientX - startX
-              const newWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidth + delta))
-              setSidebarWidth(newWidth)
-            }
-            const onMouseUp = () => {
-              isDraggingRef.current = false
-              document.removeEventListener('mousemove', onMouseMove)
-              document.removeEventListener('mouseup', onMouseUp)
-            }
-            document.addEventListener('mousemove', onMouseMove)
-            document.addEventListener('mouseup', onMouseUp)
-          }}
-        />
-
         {/* Right panel */}
         <div className="flex-1 flex flex-col overflow-hidden relative bg-background">
           {/* Scan overlay */}
@@ -1604,17 +1573,6 @@ export function MissionBrowser({ isOpen, onClose, onImport, initialMission }: Mi
                     (r) => r.mission.title === selectedMission.title
                   )?.matchPercent}
                   shareUrl={getMissionShareUrl(selectedMission)}
-                  {...(() => {
-                    if (!selectedPath?.startsWith('github/')) return {}
-                    const parts = selectedPath.replace('github/', '').split('/')
-                    if (parts.length < 3) return {}
-                    const [owner, repo, ...rest] = parts
-                    const filePath = rest.join('/')
-                    return {
-                      githubSourceUrl: `https://github.com/${owner}/${repo}/blob/main/${filePath}`,
-                      githubEditUrl: `https://github.com/${owner}/${repo}/edit/main/${filePath}`,
-                    }
-                  })()}
                 />
                 {showImproveDialog && (
                   <ImproveMissionDialog

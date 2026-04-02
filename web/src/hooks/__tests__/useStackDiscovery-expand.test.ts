@@ -365,5 +365,3 @@ describe('useStackDiscovery — expanded edge cases', () => {
     expect(gw?.readyReplicas).toBe(0)
   })
 })
-})
-})
