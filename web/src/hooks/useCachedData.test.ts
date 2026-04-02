@@ -45,6 +45,7 @@ vi.mock('../lib/cache', () => ({
 
 vi.mock('../lib/api', () => ({
   isBackendUnavailable: () => mockIsBackendUnavailable(),
+  authFetch: vi.fn().mockRejectedValue(new Error('authFetch not configured for this test')),
 }))
 
 vi.mock('./useLocalAgent', () => ({
@@ -56,7 +57,7 @@ vi.mock('../lib/kubectlProxy', () => ({
 }))
 
 vi.mock('../lib/sseClient', () => ({
-  fetchSSE: vi.fn(),
+  fetchSSE: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('./mcp/shared', () => ({

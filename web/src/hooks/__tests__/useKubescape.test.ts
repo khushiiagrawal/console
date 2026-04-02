@@ -1345,3 +1345,6 @@ describe('useKubescape — edge cases', () => {
     unmount()
   })
 })
+})
+})
+})

@@ -1428,3 +1428,5 @@ describe('useStackDiscovery', () => {
     unmount()
   })
 })
+})
+})
