@@ -555,4 +555,4 @@ describe('cache lifecycle deep tests', () => {
     expect(result.current.data).toEqual(['new-data'])
   })
 })
-})
+

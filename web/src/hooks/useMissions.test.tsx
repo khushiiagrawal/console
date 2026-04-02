@@ -2959,4 +2959,1041 @@ describe('dismissMission unread cleanup', () => {
     expect(result.current.missions.find(m => m.id === missionId)).toBeUndefined()
   })
 })
+
+// ── NEW: Deep coverage tests ─────────────────────────────────────────────────
+// Targets: 630 uncovered statements — WS message handling, state machine
+// transitions, error classification, token usage tracking, auto-reconnect logic,
+// wsSend retry, stream dedup, progress tokens, preflight, dry-run injection, etc.
+
+// ── Error classification edge cases ──────────────────────────────────────────
+
+describe('error classification edge cases', () => {
+  it('detects auth error from "403" in message text', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api_error', message: 'HTTP 403 Forbidden' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.status).toBe('failed')
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects auth error from "permission_error" code', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'permission_error', message: 'Insufficient permissions' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects auth error from "oauth token" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'provider_error', message: 'OAuth token expired, please re-authenticate' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects auth error from "token has expired" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'auth', message: 'The token has expired' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects auth error from "invalid x-api-key" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api', message: 'invalid x-api-key header value' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects auth error from "failed to authenticate"', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'connection', message: 'failed to authenticate with provider' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(true)
+  })
+
+  it('detects rate limit from "rate limit" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api_error', message: 'rate limit exceeded for this model' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('detects rate limit from "rate_limit" code', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'rate_limit', message: 'Throttled' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('detects rate limit from "too many requests" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api_error', message: 'too many requests, slow down' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('detects rate limit from "resource_exhausted"', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'resource_exhausted', message: 'Quota depleted' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('detects rate limit from "tokens per min" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api', message: 'exceeded tokens per min limit' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('detects rate limit from "requests per min" in message', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'api', message: 'exceeded requests per min' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(true)
+  })
+
+  it('shows generic error message for unrecognized error codes', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: { code: 'some_novel_error', message: 'Something completely new went wrong' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.status).toBe('failed')
+    // Should contain the raw error message, not the auth/rate-limit template
+    expect(mission.messages.some(m => m.content.includes('Something completely new went wrong'))).toBe(true)
+    expect(mission.messages.some(m => m.content.includes('Authentication Error'))).toBe(false)
+    expect(mission.messages.some(m => m.content.includes('Rate Limit'))).toBe(false)
+  })
+
+  it('handles error message with missing code and message (fallback to "Unknown error")', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'error',
+        payload: {},
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.status).toBe('failed')
+    expect(mission.messages.some(m => m.content.includes('Unknown error'))).toBe(true)
+    expect(emitMissionError).toHaveBeenCalledWith('troubleshoot', 'unknown')
+  })
+})
+
+// ── Token usage tracking: progressive delta ─────────────────────────────────
+
+describe('token usage delta tracking', () => {
+  it('calculates delta from previous total on progress messages', async () => {
+    const { addCategoryTokens } = await import('./useTokenUsage')
+    vi.mocked(addCategoryTokens).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    // First progress: total=100
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 80, output: 20, total: 100 } },
+      })
+    })
+    expect(addCategoryTokens).toHaveBeenCalledWith(100, 'missions')
+
+    vi.mocked(addCategoryTokens).mockClear()
+
+    // Second progress: total=250, delta should be 150
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 200, output: 50, total: 250 } },
+      })
+    })
+    expect(addCategoryTokens).toHaveBeenCalledWith(150, 'missions')
+  })
+
+  it('does not call addCategoryTokens when progress has no tokens', async () => {
+    const { addCategoryTokens } = await import('./useTokenUsage')
+    vi.mocked(addCategoryTokens).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { step: 'No tokens here' },
+      })
+    })
+
+    expect(addCategoryTokens).not.toHaveBeenCalled()
+  })
+
+  it('does not call addCategoryTokens when delta is zero', async () => {
+    const { addCategoryTokens } = await import('./useTokenUsage')
+    vi.mocked(addCategoryTokens).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    // Set initial total
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 50, output: 50, total: 100 } },
+      })
+    })
+    vi.mocked(addCategoryTokens).mockClear()
+
+    // Same total again — delta is 0
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 50, output: 50, total: 100 } },
+      })
+    })
+    expect(addCategoryTokens).not.toHaveBeenCalled()
+  })
+
+  it('tracks token delta from result message with usage data', async () => {
+    const { addCategoryTokens } = await import('./useTokenUsage')
+    vi.mocked(addCategoryTokens).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    // Set initial tokens via progress
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 100, output: 50, total: 150 } },
+      })
+    })
+    vi.mocked(addCategoryTokens).mockClear()
+
+    // Result with higher total
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'result',
+        payload: {
+          content: 'Done',
+          agent: 'claude-code',
+          sessionId: 'test',
+          done: true,
+          usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
+        },
+      })
+    })
+
+    // Delta: 300 - 150 = 150
+    expect(addCategoryTokens).toHaveBeenCalledWith(150, 'missions')
+  })
+})
+
+// ── Stream: agent field propagation ──────────────────────────────────────────
+
+describe('stream agent field propagation', () => {
+  it('sets the mission agent from stream payload.agent', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'stream',
+        payload: { content: 'Hello from gemini', done: false, agent: 'gemini-pro' },
+      })
+    })
+
+    const mission = result.current.missions[0]
+    expect(mission.agent).toBe('gemini-pro')
+    const assistantMsg = mission.messages.find(m => m.role === 'assistant')
+    expect(assistantMsg?.agent).toBe('gemini-pro')
+  })
+
+  it('sets the mission agent from result payload.agent', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'result',
+        payload: {
+          content: 'Done by GPT',
+          agent: 'openai-gpt4',
+          sessionId: 'test',
+          done: true,
+        },
+      })
+    })
+
+    expect(result.current.missions[0].agent).toBe('openai-gpt4')
+  })
+})
+
+// ── Dry-run injection ───────────────────────────────────────────────────────
+
+describe('dry-run prompt injection', () => {
+  it('injects dry-run instructions into the prompt when dryRun=true', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => {
+      result.current.startMission({
+        ...defaultParams,
+        dryRun: true,
+      })
+    })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    const chatCall = MockWebSocket.lastInstance?.send.mock.calls.find(
+      (call: string[]) => JSON.parse(call[0]).type === 'chat',
+    )
+    expect(chatCall).toBeDefined()
+    const prompt = JSON.parse(chatCall![0]).payload.prompt
+    expect(prompt).toContain('DRY RUN MODE')
+    expect(prompt).toContain('--dry-run=server')
+  })
+
+  it('does not inject dry-run instructions when dryRun is false/undefined', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => {
+      result.current.startMission({ ...defaultParams })
+    })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    const chatCall = MockWebSocket.lastInstance?.send.mock.calls.find(
+      (call: string[]) => JSON.parse(call[0]).type === 'chat',
+    )
+    const prompt = JSON.parse(chatCall![0]).payload.prompt
+    expect(prompt).not.toContain('DRY RUN MODE')
+  })
+})
+
+// ── Progress message: partial fields ────────────────────────────────────────
+
+describe('progress message partial fields', () => {
+  it('preserves previous progress percentage when new progress message has no progress field', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { step: 'Step 1', progress: 30 },
+      })
+    })
+    expect(result.current.missions[0].progress).toBe(30)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { step: 'Step 2' },
+      })
+    })
+    // Progress should be preserved from previous
+    expect(result.current.missions[0].progress).toBe(30)
+    expect(result.current.missions[0].currentStep).toBe('Step 2')
+  })
+
+  it('preserves previous currentStep when progress message has no step field', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { step: 'Custom step' },
+      })
+    })
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { progress: 75 },
+      })
+    })
+
+    expect(result.current.missions[0].currentStep).toBe('Custom step')
+    expect(result.current.missions[0].progress).toBe(75)
+  })
+
+  it('updates tokenUsage fields individually from progress (missing fields use prior values)', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { input: 100, output: 50, total: 150 } },
+      })
+    })
+
+    // Send partial update with only total
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'progress',
+        payload: { tokens: { total: 200 } },
+      })
+    })
+
+    const tokenUsage = result.current.missions[0].tokenUsage
+    expect(tokenUsage?.total).toBe(200)
+    // input and output should be preserved from previous
+    expect(tokenUsage?.input).toBe(100)
+    expect(tokenUsage?.output).toBe(50)
+  })
+})
+
+// ── WS close: auto-reconnect backoff arithmetic ─────────────────────────────
+
+describe('WebSocket auto-reconnect backoff arithmetic', () => {
+  it('doubles the delay on consecutive reconnection failures', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+
+      // First connection
+      act(() => { result.current.connectToAgent() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+      const ws1 = MockWebSocket.lastInstance
+
+      // Close #1 -> delay = 1000ms
+      act(() => { ws1?.simulateClose() })
+      act(() => { vi.advanceTimersByTime(1_100) })
+      const ws2 = MockWebSocket.lastInstance
+      expect(ws2).not.toBe(ws1)
+
+      // Close #2 without opening -> delay = 2000ms
+      act(() => { ws2?.simulateClose() })
+      // At 1100ms nothing should have reconnected yet
+      act(() => { vi.advanceTimersByTime(1_100) })
+      expect(MockWebSocket.lastInstance).toBe(ws2)
+      // At 2100ms total (surpassing 2000ms) it should reconnect
+      act(() => { vi.advanceTimersByTime(1_000) })
+      const ws3 = MockWebSocket.lastInstance
+      expect(ws3).not.toBe(ws2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resets backoff attempts on successful connection', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+
+      // Connect and close to bump the attempt counter
+      act(() => { result.current.connectToAgent() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+      act(() => { MockWebSocket.lastInstance?.simulateClose() })
+      act(() => { vi.advanceTimersByTime(1_100) })
+
+      // Second connect succeeds -> should reset counter
+      const ws2 = MockWebSocket.lastInstance
+      await act(async () => { ws2?.simulateOpen() })
+
+      // Close again -> delay should be back to 1000ms (not 4000ms)
+      act(() => { ws2?.simulateClose() })
+      act(() => { vi.advanceTimersByTime(1_100) })
+      const ws3 = MockWebSocket.lastInstance
+      expect(ws3).not.toBe(ws2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ── Stream gap: no gap when under threshold ─────────────────────────────────
+
+describe('stream gap detection: no gap under threshold', () => {
+  it('appends to existing message when gap is under 8 seconds', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+      let missionId = ''
+      act(() => {
+        missionId = result.current.startMission(defaultParams)
+      })
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+      const chatCall = MockWebSocket.lastInstance?.send.mock.calls.find(
+        (call: string[]) => JSON.parse(call[0]).type === 'chat',
+      )
+      const requestId = chatCall ? JSON.parse(chatCall[0]).id : ''
+
+      // First chunk
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'stream',
+          payload: { content: 'Part A', done: false },
+        })
+      })
+
+      // Advance only 5 seconds (under 8s threshold)
+      act(() => { vi.advanceTimersByTime(5000) })
+
+      // Second chunk
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'stream',
+          payload: { content: ' Part B', done: false },
+        })
+      })
+
+      const mission = result.current.missions.find(m => m.id === missionId)
+      const assistantMsgs = mission?.messages.filter(m => m.role === 'assistant') ?? []
+      // Should be a single concatenated message
+      expect(assistantMsgs.length).toBe(1)
+      expect(assistantMsgs[0].content).toBe('Part A Part B')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ── Result message deduplication: multi-bubble streaming ────────────────────
+
+describe('result deduplication with multi-bubble streaming', () => {
+  it('deduplicates result when content matches across multiple stream bubbles', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+      let missionId = ''
+      act(() => {
+        missionId = result.current.startMission(defaultParams)
+      })
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+      const chatCall = MockWebSocket.lastInstance?.send.mock.calls.find(
+        (call: string[]) => JSON.parse(call[0]).type === 'chat',
+      )
+      const requestId = chatCall ? JSON.parse(chatCall[0]).id : ''
+
+      // First bubble
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'stream',
+          payload: { content: 'First part. ', done: false },
+        })
+      })
+
+      // Gap to create second bubble
+      act(() => { vi.advanceTimersByTime(9000) })
+
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'stream',
+          payload: { content: 'Second part.', done: false },
+        })
+      })
+
+      // Stream done
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'stream',
+          payload: { content: '', done: true },
+        })
+      })
+
+      const mission = result.current.missions.find(m => m.id === missionId)
+      const assistantBefore = mission?.messages.filter(m => m.role === 'assistant') ?? []
+      expect(assistantBefore.length).toBe(2)
+
+      // Now result arrives with content that matches the concatenation
+      act(() => {
+        MockWebSocket.lastInstance?.simulateMessage({
+          id: requestId,
+          type: 'result',
+          payload: { content: 'First part. Second part.' },
+        })
+      })
+
+      const missionAfter = result.current.missions.find(m => m.id === missionId)
+      const assistantAfter = missionAfter?.messages.filter(m => m.role === 'assistant') ?? []
+      // Should NOT add a duplicate — still 2 bubbles
+      expect(assistantAfter.length).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ── WebSocket message parsing: malformed JSON ───────────────────────────────
+
+describe('WebSocket malformed message handling', () => {
+  it('does not crash on non-JSON WebSocket message', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => { result.current.connectToAgent() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    // Send non-JSON data
+    act(() => {
+      MockWebSocket.lastInstance?.onmessage?.(
+        new MessageEvent('message', { data: 'not valid json {{{' })
+      )
+    })
+
+    expect(errorSpy).toHaveBeenCalledWith('[Missions] Failed to parse message:', expect.any(Error))
+    // Hook should still work
+    expect(result.current.missions).toEqual([])
+    errorSpy.mockRestore()
+  })
+})
+
+// ── Status waiting/processing timeouts ──────────────────────────────────────
+
+describe('status step transitions during mission execution', () => {
+  it('transitions currentStep to "Waiting for response..." after 500ms', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+      act(() => { result.current.startMission(defaultParams) })
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+      const missionId = result.current.missions[0].id
+      expect(result.current.missions.find(m => m.id === missionId)?.currentStep).toBe('Connecting to agent...')
+
+      act(() => { vi.advanceTimersByTime(600) })
+
+      expect(result.current.missions.find(m => m.id === missionId)?.currentStep).toBe('Waiting for response...')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('transitions currentStep to "Processing with <agent>..." after 3000ms', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useMissions(), { wrapper })
+
+      // Set up a selected agent
+      act(() => { result.current.selectAgent('claude-code') })
+
+      act(() => { result.current.startMission(defaultParams) })
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+      const missionId = result.current.missions[0].id
+
+      act(() => { vi.advanceTimersByTime(3_100) })
+
+      const step = result.current.missions.find(m => m.id === missionId)?.currentStep
+      expect(step).toContain('Processing with')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ── emitMissionCompleted on stream done vs result ───────────────────────────
+
+describe('analytics: emitMissionCompleted timing', () => {
+  it('emits completion analytics on stream done when mission is running', async () => {
+    vi.mocked(emitMissionCompleted).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'stream',
+        payload: { content: '', done: true },
+      })
+    })
+
+    expect(emitMissionCompleted).toHaveBeenCalledWith('troubleshoot', expect.any(Number))
+  })
+
+  it('emits completion analytics on result when mission is running', async () => {
+    vi.mocked(emitMissionCompleted).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'result',
+        payload: { content: 'All done' },
+      })
+    })
+
+    expect(emitMissionCompleted).toHaveBeenCalledWith('troubleshoot', expect.any(Number))
+  })
+
+  it('does NOT emit completion analytics when mission is not in running state', async () => {
+    vi.mocked(emitMissionCompleted).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    // First stream done => waiting_input
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'stream',
+        payload: { content: '', done: true },
+      })
+    })
+    vi.mocked(emitMissionCompleted).mockClear()
+
+    // Result on an already waiting_input mission
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'result',
+        payload: { content: 'Duplicate' },
+      })
+    })
+
+    // Should not double-emit
+    expect(emitMissionCompleted).not.toHaveBeenCalled()
+  })
+})
+
+// ── Agent selection: persisted "none" auto-upgrades ─────────────────────────
+
+describe('agent selection: persisted "none" auto-selects available agent', () => {
+  it('auto-selects the best available agent when persisted is "none"', async () => {
+    localStorage.setItem('kc_selected_agent', 'none')
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    await act(async () => {
+      result.current.connectToAgent()
+      MockWebSocket.lastInstance?.simulateOpen()
+    })
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: 'list-auto',
+        type: 'agents_list',
+        payload: {
+          agents: [
+            { name: 'claude-code', displayName: 'Claude', description: '', provider: 'anthropic-local', available: true, capabilities: 3 },
+          ],
+          defaultAgent: 'claude-code',
+          selected: 'claude-code',
+        },
+      })
+    })
+
+    // Should NOT use 'none' from localStorage since an agent IS available
+    expect(result.current.selectedAgent).toBe('claude-code')
+    expect(result.current.isAIDisabled).toBe(false)
+  })
+})
+
+// ── Agent selection: no available agents ────────────────────────────────────
+
+describe('agent selection: no available agents', () => {
+  it('falls back to null when no agents are available', async () => {
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    await act(async () => {
+      result.current.connectToAgent()
+      MockWebSocket.lastInstance?.simulateOpen()
+    })
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: 'list-none',
+        type: 'agents_list',
+        payload: {
+          agents: [
+            { name: 'claude-code', displayName: 'Claude', description: '', provider: 'anthropic-local', available: false },
+          ],
+          defaultAgent: '',
+          selected: '',
+        },
+      })
+    })
+
+    // No available agent => isAIDisabled
+    expect(result.current.isAIDisabled).toBe(true)
+  })
+})
+
+// ── Mission reconnection: edge cases ────────────────────────────────────────
+
+describe('mission reconnection edge cases', () => {
+  it('uses the missions agent for reconnection or falls back to claude-code', async () => {
+    localStorage.setItem('kc_missions', JSON.stringify([{
+      id: 'reconnect-agent-1',
+      title: 'Agent Mission',
+      description: 'Was running with specific agent',
+      type: 'troubleshoot',
+      status: 'running',
+      agent: 'gemini-pro',
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Analyze this', timestamp: new Date().toISOString() },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      context: { needsReconnect: true },
+    }]))
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => { result.current.connectToAgent() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    // Wait for reconnect delay
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 600))
+    })
+
+    const chatCalls = (MockWebSocket.lastInstance?.send.mock.calls ?? []).filter(
+      (call: string[]) => {
+        try { return JSON.parse(call[0]).type === 'chat' } catch { return false }
+      },
+    )
+
+    if (chatCalls.length > 0) {
+      const payload = JSON.parse(chatCalls[0][0]).payload
+      // Should use the mission's agent (gemini-pro)
+      expect(payload.agent).toBe('gemini-pro')
+    }
+  })
+
+  it('builds history excluding system messages for reconnection', async () => {
+    localStorage.setItem('kc_missions', JSON.stringify([{
+      id: 'reconnect-history-1',
+      title: 'History Mission',
+      description: 'Had system messages',
+      type: 'troubleshoot',
+      status: 'running',
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Help me', timestamp: new Date().toISOString() },
+        { id: 'msg-2', role: 'system', content: 'System note', timestamp: new Date().toISOString() },
+        { id: 'msg-3', role: 'assistant', content: 'Working on it', timestamp: new Date().toISOString() },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      context: { needsReconnect: true },
+    }]))
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => { result.current.connectToAgent() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 600))
+    })
+
+    const chatCalls = (MockWebSocket.lastInstance?.send.mock.calls ?? []).filter(
+      (call: string[]) => {
+        try { return JSON.parse(call[0]).type === 'chat' } catch { return false }
+      },
+    )
+
+    if (chatCalls.length > 0) {
+      const payload = JSON.parse(chatCalls[0][0]).payload
+      // History should NOT include system messages
+      const systemInHistory = payload.history?.some((h: { role: string }) => h.role === 'system')
+      expect(systemInHistory).toBe(false)
+      // Should include user and assistant messages
+      expect(payload.history?.some((h: { role: string }) => h.role === 'user')).toBe(true)
+      expect(payload.history?.some((h: { role: string }) => h.role === 'assistant')).toBe(true)
+    }
+  })
+})
+
+// ── setActiveTokenCategory called on mission actions ────────────────────────
+
+describe('setActiveTokenCategory on mission actions', () => {
+  it('sets active token category to "missions" when starting a mission', async () => {
+    const { setActiveTokenCategory } = await import('./useTokenUsage')
+    vi.mocked(setActiveTokenCategory).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    act(() => { result.current.startMission(defaultParams) })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { MockWebSocket.lastInstance?.simulateOpen() })
+
+    expect(setActiveTokenCategory).toHaveBeenCalledWith('missions')
+  })
+
+  it('sets active token category to "missions" on sendMessage', async () => {
+    const { setActiveTokenCategory } = await import('./useTokenUsage')
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { missionId, requestId } = await startMissionWithConnection(result)
+
+    // Complete first turn
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'stream',
+        payload: { content: '', done: true },
+      })
+    })
+    vi.mocked(setActiveTokenCategory).mockClear()
+
+    act(() => {
+      result.current.sendMessage(missionId, 'follow up')
+    })
+
+    expect(setActiveTokenCategory).toHaveBeenCalledWith('missions')
+  })
+
+  it('clears active token category on result message', async () => {
+    const { setActiveTokenCategory } = await import('./useTokenUsage')
+    vi.mocked(setActiveTokenCategory).mockClear()
+
+    const { result } = renderHook(() => useMissions(), { wrapper })
+    const { requestId } = await startMissionWithConnection(result)
+
+    act(() => {
+      MockWebSocket.lastInstance?.simulateMessage({
+        id: requestId,
+        type: 'result',
+        payload: { content: 'Done' },
+      })
+    })
+
+    expect(setActiveTokenCategory).toHaveBeenCalledWith(null)
+  })
+})
+})
+})
+})
 })
