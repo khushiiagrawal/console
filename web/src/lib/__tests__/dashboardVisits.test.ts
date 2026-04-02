@@ -271,5 +271,3 @@ describe('prefetchTopDashboards', () => {
   })
 })
 })
-})
-})

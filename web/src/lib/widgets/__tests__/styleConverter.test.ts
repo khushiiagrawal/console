@@ -128,5 +128,24 @@ describe('generateWidgetShell', () => {
     expect(result).toContain('import')
     expect(result).toContain('openConsole')
   })
-})
+
+  it('includes drag event handlers', () => {
+    const result = generateWidgetShell('test-widget', 'http://localhost:8080')
+    expect(result).toContain('handleDragStart')
+    expect(result).toContain('handleDragMove')
+    expect(result).toContain('handleDragEnd')
+  })
+
+  it('includes UTM tracking parameters', () => {
+    const result = generateWidgetShell('test-widget', 'http://localhost:8080')
+    expect(result).toContain('utm_source=widget')
+    expect(result).toContain('utm_medium=ubersicht')
+  })
+
+  it('includes CSS className export', () => {
+    const result = generateWidgetShell('test-widget', 'http://localhost:8080')
+    expect(result).toContain('export const className = css`')
+    expect(result).toContain('.widget-container')
+    expect(result).toContain('.drag-handle')
+  })
 })
