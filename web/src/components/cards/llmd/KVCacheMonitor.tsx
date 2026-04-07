@@ -514,7 +514,8 @@ export function KVCacheMonitor() {
     updateStats()
     const interval = setInterval(updateStats, KV_CACHE_UPDATE_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [generateStats])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Calculate aggregate metrics
   const aggregateMetrics = useMemo(() => {
