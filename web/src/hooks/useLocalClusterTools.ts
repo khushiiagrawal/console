@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocalAgent } from './useLocalAgent'
 import { LOCAL_AGENT_HTTP_URL } from '../lib/constants'
 import { FETCH_DEFAULT_TIMEOUT_MS, RETRY_DELAY_MS, UI_FEEDBACK_TIMEOUT_MS } from '../lib/constants/network'
@@ -523,20 +523,27 @@ export function useLocalClusterTools() {
     fetchVClusterClusterStatus()
   }
 
-  // Initial fetch when connected or in demo mode
+  // Initial fetch when connected or in demo mode — ref guard prevents infinite loop
+  // from unstable function deps (fetchTools is not wrapped in useCallback)
+  const localClusterInitRef = useRef(false)
   useEffect(() => {
     if (isConnected || isDemoMode) {
-      fetchTools()
-      fetchClusters()
-      fetchVClusters()
-      fetchVClusterClusterStatus()
+      if (!localClusterInitRef.current) {
+        localClusterInitRef.current = true
+        fetchTools()
+        fetchClusters()
+        fetchVClusters()
+        fetchVClusterClusterStatus()
+      }
     } else {
+      localClusterInitRef.current = false
       setTools([])
       setClusters([])
       setVclusterInstances([])
       setVclusterClusterStatus([])
     }
-  }, [isConnected, isDemoMode, fetchTools, fetchClusters, fetchVClusters, fetchVClusterClusterStatus])
+  // eslint-disable-next-line react-hooks/exhaustive-deps — fetchTools/fetchVClusterClusterStatus are not memoized
+  }, [isConnected, isDemoMode, fetchClusters, fetchVClusters])
 
   // Auto-refresh cluster list when a create/delete operation completes
   useEffect(() => {

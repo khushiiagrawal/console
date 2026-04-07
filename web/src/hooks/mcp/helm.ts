@@ -134,7 +134,8 @@ export function useHelmReleases(cluster?: string) {
     return () => { helmReleasesCache.listeners.delete(updateHandler) }
   }, [])
 
-  const notifyListeners = (isRefreshing: boolean, isLoading = false) => {
+  // Stable reference — prevents refetch useCallback from changing every render
+  const notifyListenersRef = useRef((isRefreshing: boolean, isLoading = false) => {
     const state: HelmReleasesCacheState = {
       releases: helmReleasesCache.data,
       isLoading,
@@ -144,7 +145,8 @@ export function useHelmReleases(cluster?: string) {
       lastRefresh: helmReleasesCache.timestamp > 0 ? helmReleasesCache.timestamp : null
     }
     helmReleasesCache.listeners.forEach(listener => listener(state))
-  }
+  })
+  const notifyListeners = notifyListenersRef.current
 
   const refetch = useCallback(async (silent = false) => {
     // Skip fetching entirely in forced demo mode (Netlify) — no backend

@@ -1240,7 +1240,10 @@ export function useJobs(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
+  const jobsInitRef = useRef(false)
   useEffect(() => {
+    if (jobsInitRef.current) return
+    jobsInitRef.current = true
     refetch()
     return () => { sseAbortRef.current?.abort() }
   }, [refetch])
@@ -1302,7 +1305,10 @@ export function useHPAs(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
+  const hpasInitRef = useRef(false)
   useEffect(() => {
+    if (hpasInitRef.current) return
+    hpasInitRef.current = true
     refetch()
   }, [refetch])
 
@@ -1364,7 +1370,12 @@ export function useReplicaSets(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
-  useEffect(() => { refetch() }, [refetch])
+  const replicaSetsInitRef = useRef(false)
+  useEffect(() => {
+    if (replicaSetsInitRef.current) return
+    replicaSetsInitRef.current = true
+    refetch()
+  }, [refetch])
   return { replicasets, isLoading, error, refetch, consecutiveFailures, isFailed: consecutiveFailures >= 3 }
 }
 
@@ -1422,7 +1433,12 @@ export function useStatefulSets(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
-  useEffect(() => { refetch() }, [refetch])
+  const statefulSetsInitRef = useRef(false)
+  useEffect(() => {
+    if (statefulSetsInitRef.current) return
+    statefulSetsInitRef.current = true
+    refetch()
+  }, [refetch])
   return { statefulsets, isLoading, error, refetch, consecutiveFailures, isFailed: consecutiveFailures >= 3 }
 }
 
@@ -1480,7 +1496,12 @@ export function useDaemonSets(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
-  useEffect(() => { refetch() }, [refetch])
+  const daemonSetsInitRef = useRef(false)
+  useEffect(() => {
+    if (daemonSetsInitRef.current) return
+    daemonSetsInitRef.current = true
+    refetch()
+  }, [refetch])
   return { daemonsets, isLoading, error, refetch, consecutiveFailures, isFailed: consecutiveFailures >= 3 }
 }
 
@@ -1538,7 +1559,12 @@ export function useCronJobs(cluster?: string, namespace?: string) {
     }
   }, [cluster, namespace])
 
-  useEffect(() => { refetch() }, [refetch])
+  const cronJobsInitRef = useRef(false)
+  useEffect(() => {
+    if (cronJobsInitRef.current) return
+    cronJobsInitRef.current = true
+    refetch()
+  }, [refetch])
   return { cronjobs, isLoading, error, refetch, consecutiveFailures, isFailed: consecutiveFailures >= 3 }
 }
 
@@ -1572,7 +1598,10 @@ export function usePodLogs(cluster: string, namespace: string, pod: string, cont
     }
   }, [cluster, namespace, pod, container, tail])
 
+  const logsInitRef = useRef(false)
   useEffect(() => {
+    if (logsInitRef.current) return
+    logsInitRef.current = true
     refetch()
   }, [refetch])
 

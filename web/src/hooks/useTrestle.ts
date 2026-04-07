@@ -464,18 +464,22 @@ export function useTrestle() {
     }
   }, [clusterNames, isDemoMode])
 
-  // Initial load with cache
+  // Initial load with cache — ref guard prevents re-running on fetchData identity changes
+  const trestleInitRef = useRef(false)
   useEffect(() => {
     mountedRef.current = true
-    const cached = loadFromCache()
-    if (cached) {
-      setStatuses(cached.statuses)
-      setIsLoading(false)
-      setLastRefresh(new Date(cached.timestamp))
-      // Still refresh in background
-      fetchData(true)
-    } else {
-      fetchData()
+    if (!trestleInitRef.current) {
+      trestleInitRef.current = true
+      const cached = loadFromCache()
+      if (cached) {
+        setStatuses(cached.statuses)
+        setIsLoading(false)
+        setLastRefresh(new Date(cached.timestamp))
+        // Still refresh in background
+        fetchData(true)
+      } else {
+        fetchData()
+      }
     }
     return () => { mountedRef.current = false }
   }, [fetchData])
