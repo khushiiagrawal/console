@@ -1156,7 +1156,9 @@ func hasUncommittedChanges(repoPath string) bool {
 }
 
 func runGitPull(repoPath string) error {
-	cmd := exec.Command("git", "pull", "--rebase", "--autostash", "origin", "main")
+	// Use --ff-only instead of --rebase to avoid "Cannot rebase onto multiple branches"
+	// error when git worktrees exist (common with Claude Code users).
+	cmd := exec.Command("git", "pull", "--ff-only", "origin", "main")
 	cmd.Dir = repoPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -1168,7 +1170,7 @@ func runGitPullWithTimeout(repoPath string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", "pull", "--rebase", "--autostash", "origin", "main")
+	cmd := exec.CommandContext(ctx, "git", "pull", "--ff-only", "origin", "main")
 	cmd.Dir = repoPath
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
