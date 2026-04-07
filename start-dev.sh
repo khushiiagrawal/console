@@ -243,6 +243,15 @@ go run ./cmd/console/ --dev &
 BACKEND_PID=$!
 sleep 2
 
+# Verify backend is still running (catches port conflicts, build errors, etc.)
+if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo -e "${RED:-}Error: Backend failed to start (PID $BACKEND_PID exited).${NC:-}"
+    echo -e "${RED:-}Check if port 8080 is already in use: lsof -i :8080${NC:-}"
+    # Clean up agent if started
+    [ -n "$AGENT_PID" ] && kill "$AGENT_PID" 2>/dev/null
+    exit 1
+fi
+
 # Start frontend
 echo "Starting frontend..."
 (cd web && npm run dev -- --port 5174) &
