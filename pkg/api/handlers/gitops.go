@@ -263,6 +263,13 @@ func (h *GitOpsHandlers) ListDrifts(c *fiber.Ctx) error {
 func (h *GitOpsHandlers) ListHelmReleases(c *fiber.Ctx) error {
 	cluster := c.Query("cluster")
 
+	// SECURITY: Validate cluster name before passing to helm CLI
+	if cluster != "" {
+		if err := validateK8sName(cluster, "cluster"); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
+
 	// If specific cluster requested, query only that cluster
 	if cluster != "" {
 		return h.listHelmReleasesForCluster(c, cluster)
@@ -352,6 +359,13 @@ func (h *GitOpsHandlers) getHelmReleasesForCluster(ctx context.Context, cluster 
 // ListKustomizations returns Flux Kustomization resources
 func (h *GitOpsHandlers) ListKustomizations(c *fiber.Ctx) error {
 	cluster := c.Query("cluster")
+
+	// SECURITY: Validate cluster name before passing to kubectl CLI
+	if cluster != "" {
+		if err := validateK8sName(cluster, "cluster"); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
 
 	// If specific cluster requested, query only that cluster
 	if cluster != "" {
@@ -538,6 +552,13 @@ var (
 // ListOperators returns OLM-managed operators (ClusterServiceVersions)
 func (h *GitOpsHandlers) ListOperators(c *fiber.Ctx) error {
 	cluster := c.Query("cluster")
+
+	// SECURITY: Validate cluster name before passing to kubectl CLI
+	if cluster != "" {
+		if err := validateK8sName(cluster, "cluster"); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
 
 	// If specific cluster requested, query only that cluster
 	if cluster != "" {
@@ -944,6 +965,13 @@ func (h *GitOpsHandlers) fetchOperatorsFromCluster(ctx context.Context, cluster 
 // ListOperatorSubscriptions returns OLM subscriptions across clusters
 func (h *GitOpsHandlers) ListOperatorSubscriptions(c *fiber.Ctx) error {
 	cluster := c.Query("cluster")
+
+	// SECURITY: Validate cluster name before passing to kubectl CLI
+	if cluster != "" {
+		if err := validateK8sName(cluster, "cluster"); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
 
 	if cluster != "" {
 		ctx, cancel := context.WithTimeout(c.Context(), subscriptionPerClusterTimeout)
