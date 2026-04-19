@@ -11,7 +11,8 @@ fullnameOverride: ""
 
 serviceAccount:
   create: true
-  automount: false
+  # Security: set to false if using kc-agent for all K8s operations (reduces attack surface)
+  automount: true
   annotations: {}
   name: ""
 
