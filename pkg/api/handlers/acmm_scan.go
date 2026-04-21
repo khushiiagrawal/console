@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -36,10 +37,13 @@ const (
 var (
 	repoSlugRE = regexp.MustCompile(`^[\w.\-]+/[\w.\-]+$`)
 	aiAuthors  = map[string]bool{
-		"clubanderson":          true,
-		"Copilot":               true,
+		"clubanderson":           true,
+		"Copilot":                true,
 		"copilot-swe-agent[bot]": true,
 	}
+	// acmmScanInFlight tracks repo scans currently being processed to avoid
+	// redundant GitHub API calls from concurrent requests.
+	acmmScanInFlight sync.Map
 )
 
 // acmmCriterion describes a single maturity detection rule.
@@ -155,8 +159,48 @@ func ACMMScanHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid repo — must be owner/name"})
 	}
 
-	token := settings.ResolveGitHubTokenEnv()
+	// Demo mode support
+	if isDemoMode(c) {
+		return c.JSON(demoACMMScan(repo))
+	}
 
+	// Coordination: collapse concurrent requests for the same repo (#6842).
+	// We use a channel that is closed when the scan finishes.
+	// value is the result/error from the scan.
+	type scanWaiter struct {
+		done   chan struct{}
+		result *acmmScanResult
+		err    error
+	}
+
+	actual, loaded := acmmScanInFlight.LoadOrStore(repo, &scanWaiter{
+		done: make(chan struct{}),
+	})
+	waiter := actual.(*scanWaiter)
+
+	if loaded {
+		// Another request is already scanning this repo. Wait for it.
+		select {
+		case <-waiter.done:
+			if waiter.err != nil {
+				return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+					"error": waiter.err.Error(),
+					"repo":  repo,
+				})
+			}
+			return c.JSON(waiter.result)
+		case <-c.Context().Done():
+			return c.Status(fiber.StatusRequestTimeout).JSON(fiber.Map{"error": "Request timed out while waiting for in-flight scan"})
+		}
+	}
+
+	// We are the primary scanner.
+	defer func() {
+		acmmScanInFlight.Delete(repo)
+		close(waiter.done)
+	}()
+
+	token := settings.ResolveGitHubTokenEnv()
 	ctx, cancel := context.WithTimeout(c.Context(), time.Duration(acmmAPITimeoutMS)*time.Millisecond)
 	defer cancel()
 
@@ -164,11 +208,13 @@ func ACMMScanHandler(c *fiber.Ctx) error {
 	treePaths, err := fetchACMMTreePaths(ctx, repo, token)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
+			waiter.err = fmt.Errorf("repo not found")
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Repo not found", "detail": repo})
 		}
+		waiter.err = fmt.Errorf("GitHub API error: %s", err.Error())
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
-			"error":  fmt.Sprintf("GitHub API error: %s", err.Error()),
-			"repo":   repo,
+			"error": waiter.err.Error(),
+			"repo":  repo,
 		})
 	}
 
@@ -186,14 +232,14 @@ func ACMMScanHandler(c *fiber.Ctx) error {
 	// Fetch weekly activity (best-effort — don't fail if rate-limited)
 	weekly := fetchACMMWeeklyActivity(ctx, repo, token)
 
-	result := acmmScanResult{
+	waiter.result = &acmmScanResult{
 		Repo:           repo,
 		ScannedAt:      time.Now().UTC().Format(time.RFC3339),
 		DetectedIDs:    detected,
 		WeeklyActivity: weekly,
 	}
 
-	return c.JSON(result)
+	return c.JSON(waiter.result)
 }
 
 // fetchACMMTreePaths gets all file paths in a GitHub repo via the trees API.
