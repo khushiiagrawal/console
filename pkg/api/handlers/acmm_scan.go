@@ -330,7 +330,7 @@ func fetchACMMWeeklyActivity(ctx context.Context, repo, token string) []acmmWeek
 		buckets[w] = &acmmWeeklyActivity{Week: w}
 	}
 
-	since := time.Now().AddDate(0, 0, -weeksOfHistory*7).Format("2006-01-02")
+	since := time.Now().UTC().AddDate(0, 0, -weeksOfHistory*7).Format("2006-01-02")
 
 	// PRs
 	prURL := fmt.Sprintf("%s/search/issues?q=repo:%s+type:pr+created:>=%s", acmmGitHubAPI, repo, since)
@@ -387,7 +387,7 @@ func fetchACMMWeeklyActivity(ctx context.Context, repo, token string) []acmmWeek
 func lastNWeeks(n int) []string {
 	seen := make(map[string]bool)
 	var weeks []string
-	now := time.Now()
+	now := time.Now().UTC()
 	for i := n - 1; i >= 0; i-- {
 		d := now.AddDate(0, 0, -i*7)
 		w := isoWeek(d)
