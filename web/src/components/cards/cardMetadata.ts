@@ -264,6 +264,8 @@ export const CARD_TITLES: Record<string, string> = {
   provider_health: 'Provider Health',
   // CoreDNS
   coredns_status: 'CoreDNS',
+  // Contour ingress proxy
+  contour_status: 'Contour',
   // CRI-O container runtime
   crio_status: 'CRI-O',
   // Strimzi Kafka operator
@@ -570,6 +572,8 @@ export const CARD_DESCRIPTIONS: Record<string, string> = {
   kube_bert: 'Q*bert style platformer navigating Kubernetes pyramids.',
   // CoreDNS
   coredns_status: 'CoreDNS pod health, restart counts, and cluster status across clusters.',
+  // Contour ingress proxy
+  contour_status: 'Contour ingress proxy status, HTTPProxy resources, and Envoy fleet health.',
   // CRI-O container runtime
   crio_status: 'CRI-O container runtime metrics, image pulls, and pod sandbox status.',
 

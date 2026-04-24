@@ -3026,6 +3026,25 @@
     "syncedHoursAgo": "{{count}}h ago",
     "syncedDaysAgo": "{{count}}d ago"
   },
+  "contourStatus": {
+    "healthy": "Healthy",
+    "degraded": "Degraded",
+    "notInstalled": "Contour not detected",
+    "notInstalledHint": "Install Contour to monitor HTTPProxy resources and Envoy fleet health.",
+    "fetchError": "Failed to fetch Contour status",
+    "totalProxies": "Total Proxies",
+    "validProxies": "Valid",
+    "invalidProxies": "Invalid",
+    "envoyReady": "Envoy Ready",
+    "sectionProxies": "HTTPProxy Resources",
+    "noProxies": "No HTTPProxy resources found",
+    "statusValid": "Valid",
+    "statusInvalid": "Invalid",
+    "syncedJustNow": "just now",
+    "syncedMinutesAgo": "{{count}}m ago",
+    "syncedHoursAgo": "{{count}}h ago",
+    "syncedDaysAgo": "{{count}}d ago"
+  },
   "kubecostOverview": {
     "monthlyCost": "Monthly Cost",
     "savingsRecommendations": "Savings Recommendations",

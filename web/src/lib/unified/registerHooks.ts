@@ -48,6 +48,7 @@ import {
   useServiceExports,
   useServiceImports } from '../../hooks/useMCS'
 import { useFluxStatus } from '../../components/cards/flux_status/useFluxStatus'
+import { useContourStatus } from '../../components/cards/contour_status/useContourStatus'
 
 // ============================================================================
 // Wrapper hooks that convert params object to positional args
@@ -1028,6 +1029,16 @@ function useUnifiedFluxStatus() {
   }
 }
 
+function useUnifiedContourStatus() {
+  const result = useContourStatus()
+  return {
+    data: result.data.proxies,
+    isLoading: result.showSkeleton,
+    error: result.error ? new Error('Failed to fetch Contour status') : null,
+    refetch: () => {},
+  }
+}
+
 function useProviderHealth() {
   return useDemoDataHook(DEMO_PROVIDER_HEALTH)
 }
@@ -1214,6 +1225,7 @@ export function registerUnifiedHooks(): void {
   registerDataHook('useGatewayStatus', useGatewayStatus)
   registerDataHook('useKustomizationStatus', useKustomizationStatus)
   registerDataHook('useFluxStatus', useUnifiedFluxStatus)
+  registerDataHook('useContourStatus', useUnifiedContourStatus)
   registerDataHook('useProviderHealth', useProviderHealth)
   registerDataHook('useUpgradeStatus', useUpgradeStatus)
   registerDataHook('useProwStatus', useProwStatus)
