@@ -1351,7 +1351,7 @@ func (s *Server) sendNativeNotification(alerts []DeviceAlert) {
 		}()
 
 		if tnPath, err := exec.LookPath("terminal-notifier"); err == nil {
-			cmd := exec.Command(tnPath,
+			cmd := execCommand(tnPath,
 				"-title", "KubeStellar Console",
 				"-subtitle", title,
 				"-message", message,
@@ -1377,7 +1377,7 @@ func (s *Server) sendNativeNotification(alerts []DeviceAlert) {
 		}
 		script := fmt.Sprintf(`display notification "%s" with title "%s" sound name "Glass"`,
 			sanitize(message), sanitize(title))
-		cmd := exec.Command("osascript", "-e", script)
+		cmd := execCommand("osascript", "-e", script)
 		if err := cmd.Run(); err != nil {
 			slog.Error("[DeviceTracker] failed to send notification", "error", err)
 		}
