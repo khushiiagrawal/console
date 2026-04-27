@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, Server, ChevronDown, ChevronUp, Wrench, CheckCircle } from 'lucide-react'
 import { NodeInfo } from '../../hooks/useMCP'
 import { ConditionBadges, hasConditionIssues, getConditionIssuesSummary } from '../shared/ConditionBadges'
@@ -20,6 +21,7 @@ const INITIAL_LABELS_SHOWN = 10
  * Shows node info, conditions, taints, labels (expandable), and a repair button if issues exist.
  */
 export function NodeDetailPanel({ node, clusterName, onClose }: NodeDetailPanelProps) {
+  const { t } = useTranslation()
   const { startMission } = useMissions()
   const [showAllLabels, setShowAllLabels] = useState(false)
 
@@ -166,9 +168,9 @@ Please proceed step by step and ask for confirmation before making any changes.`
                   className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
                 >
                   {showAllLabels ? (
-                    <>Show less <ChevronUp className="w-3 h-3" /></>
+                    <>{t('nodeDetail.showLess', 'Show less')} <ChevronUp className="w-3 h-3" /></>
                   ) : (
-                    <>Show all <ChevronDown className="w-3 h-3" /></>
+                    <>{t('nodeDetail.showAll', 'Show all')} <ChevronDown className="w-3 h-3" /></>
                   )}
                 </button>
               )}
@@ -196,12 +198,12 @@ Please proceed step by step and ask for confirmation before making any changes.`
             )}
           >
             <Wrench className="w-3.5 h-3.5" />
-            Repair
+            {t('nodeDetail.repair', 'Repair')}
           </button>
         ) : (
           <div className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium w-full justify-center bg-green-500/10 text-green-400">
             <CheckCircle className="w-3.5 h-3.5" />
-            Healthy
+            {t('nodeDetail.healthy', 'Healthy')}
           </div>
         )}
       </div>

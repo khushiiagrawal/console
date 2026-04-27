@@ -185,6 +185,8 @@
       "privacyNote": "We collect anonymous data solely for the purpose of improving the product's user experience, using Google Analytics. No personal information is ever collected or shared."
     },
     "restoredFromBackup": "Settings restored from backup file",
+    "agentBackend": "Agent Backend",
+    "localAgent": "Local Agent",
     "groups": {
       "aiIntelligence": "AI & Intelligence",
       "integrations": "Integrations",
@@ -3832,5 +3834,22 @@
     "viewClusterAria": "View cluster {{cluster}}",
     "viewNamespaceAria": "View namespace {{namespace}}",
     "viewResourceAria": "View {{kind}} resources"
+  },
+  "deployments": {
+    "errorLoading": "Error loading deployment data"
+  },
+  "nodeDetail": {
+    "showAll": "Show all",
+    "showLess": "Show less",
+    "repair": "Repair",
+    "healthy": "Healthy"
+  },
+  "pods": {
+    "noPodIssues": "No Pod Issues",
+    "restarts": "Restarts"
+  },
+  "drafts": {
+    "noSavedDrafts": "No saved drafts",
+    "editing": "Editing"
   }
 }

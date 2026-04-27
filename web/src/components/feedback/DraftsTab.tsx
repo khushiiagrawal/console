@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Clock, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { StatusBadge } from '../ui/StatusBadge'
 import { formatRelativeTime } from './FeatureRequestTypes'
@@ -33,6 +34,7 @@ export function DraftsTab({
   onClearAllDrafts,
   showToast,
 }: DraftsTabProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Drafts header */}
@@ -73,7 +75,7 @@ export function DraftsTab({
         {draftCount === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No saved drafts</p>
+            <p className="text-sm">{t('drafts.noSavedDrafts', 'No saved drafts')}</p>
             <p className="text-xs mt-1">
               Save your work-in-progress bug reports and feature requests here
             </p>
@@ -114,7 +116,7 @@ export function DraftsTab({
                         {draft.targetRepo === 'docs' ? 'Docs' : 'Console'}
                       </span>
                       {isEditing && (
-                        <StatusBadge color="purple" size="xs">Editing</StatusBadge>
+                        <StatusBadge color="purple" size="xs">{t('drafts.editing', 'Editing')}</StatusBadge>
                       )}
                     </div>
                     <p className="text-sm font-medium text-foreground mt-1 truncate">

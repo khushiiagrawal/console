@@ -355,7 +355,7 @@ export function FeedbackModal({ isOpen, onClose, initialType = 'feature' }: Feed
               )}
             </div>
             <div>
-              <h2 className="font-semibold text-foreground">Submit Feedback</h2>
+              <h2 className="font-semibold text-foreground">{t('feedback.submitFeedback', 'Submit Feedback')}</h2>
               <p className="text-xs text-muted-foreground">
                 Earn <span className="text-yellow-400">{REWARD_ACTIONS.bug_report.coins}</span> coins for bugs, <span className="text-yellow-400">{REWARD_ACTIONS.feature_suggestion.coins}</span> for features
               </p>
@@ -446,7 +446,7 @@ export function FeedbackModal({ isOpen, onClose, initialType = 'feature' }: Feed
                   }`}
                 >
                   <Bug className="w-4 h-4" />
-                  <span className="text-sm font-medium">Bug Report</span>
+                  <span className="text-sm font-medium">{t('feedback.bugReport', 'Bug Report')}</span>
                   <StatusBadge color="yellow">+{REWARD_ACTIONS.bug_report.coins}</StatusBadge>
                 </button>
                 <button
@@ -459,7 +459,7 @@ export function FeedbackModal({ isOpen, onClose, initialType = 'feature' }: Feed
                   }`}
                 >
                   <Lightbulb className="w-4 h-4" />
-                  <span className="text-sm font-medium">Feature Request</span>
+                  <span className="text-sm font-medium">{t('feedback.featureRequest', 'Feature Request')}</span>
                   <StatusBadge color="yellow">+{REWARD_ACTIONS.feature_suggestion.coins}</StatusBadge>
                 </button>
               </div>

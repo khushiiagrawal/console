@@ -223,7 +223,7 @@ export function Pods() {
       ) : filteredPodIssues.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🎉</div>
-          <div className="text-lg text-foreground">No Pod Issues</div>
+          <div className="text-lg text-foreground">{t('pods.noPodIssues', 'No Pod Issues')}</div>
           <div className="text-sm text-muted-foreground">All pods are running healthy across your clusters</div>
         </div>
       ) : (
@@ -282,7 +282,7 @@ export function Pods() {
                   {(issue.restarts || 0) > 0 && (
                     <div className="text-center">
                       <div className="text-lg font-bold text-red-400">{issue.restarts}</div>
-                      <div className="text-xs text-muted-foreground">Restarts</div>
+                      <div className="text-xs text-muted-foreground">{t('pods.restarts', 'Restarts')}</div>
                     </div>
                   )}
 

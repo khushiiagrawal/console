@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Bot, Monitor, RefreshCw, Check, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AgentIcon } from '../../agent/AgentIcon'
