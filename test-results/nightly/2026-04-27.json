@@ -1,18 +1,17 @@
 {
-  "timestamp": "2026-04-27T08:02:27Z",
+  "timestamp": "2026-04-27T23:44:40Z",
   "fastMode": false,
   "summary": {
     "total": 32,
-    "passed": 30,
-    "failed": 2,
+    "passed": 32,
+    "failed": 0,
     "skipped": 0
   },
   "results": [
     {
       "suite": "consistency-test",
-      "status": "fail",
-      "duration": 3,
-      "failure_reason": "  Phase 6 (Cache Patterns)       ⚠️  5 warnings\n  Total: 1 errors, 64 warnings\nReports:\n  JSON:     web/e2e/test-results/consistency-report.json\n  Summary:  web/e2e/test-results/consistency-summary.md\n"
+      "status": "pass",
+      "duration": 4
     },
     {
       "suite": "helm-lint-test",
@@ -22,7 +21,7 @@
     {
       "suite": "license-compliance-test",
       "status": "pass",
-      "duration": 3
+      "duration": 5
     },
     {
       "suite": "mission-security-test",
@@ -36,14 +35,13 @@
     },
     {
       "suite": "unit-test",
-      "status": "fail",
-      "duration": 1583,
-      "failure_reason": " Test Files  16 failed | 965 passed (985)\n      Tests  210 failed | 17939 passed | 6 skipped (18217)\n     Errors  9 errors\n   Start at  06:48:35\n   Duration  1580.58s (transform 51.07s, setup 137.95s, import 149.53s, tests 246.00s, environment 811.25s)\n"
+      "status": "pass",
+      "duration": 1635
     },
     {
       "suite": "auth-lifecycle-test",
       "status": "pass",
-      "duration": 35
+      "duration": 68
     },
     {
       "suite": "settings-migration-test",
@@ -53,12 +51,12 @@
     {
       "suite": "update-lifecycle-test",
       "status": "pass",
-      "duration": 63
+      "duration": 61
     },
     {
       "suite": "websocket-resilience-test",
       "status": "pass",
-      "duration": 0
+      "duration": 1
     },
     {
       "suite": "gosec-test",
@@ -68,7 +66,7 @@
     {
       "suite": "dependency-audit-test",
       "status": "pass",
-      "duration": 12
+      "duration": 14
     },
     {
       "suite": "secret-scan-test",
@@ -78,12 +76,12 @@
     {
       "suite": "ts-sast-test",
       "status": "pass",
-      "duration": 3
+      "duration": 4
     },
     {
       "suite": "container-scan-test",
       "status": "pass",
-      "duration": 15
+      "duration": 16
     },
     {
       "suite": "security-headers-test",
@@ -98,7 +96,7 @@
     {
       "suite": "api-fuzz-test",
       "status": "pass",
-      "duration": 145
+      "duration": 152
     },
     {
       "suite": "error-boundary-test",
@@ -108,32 +106,32 @@
     {
       "suite": "console-error-scan",
       "status": "pass",
-      "duration": 119
+      "duration": 120
     },
     {
       "suite": "nav-test",
       "status": "pass",
-      "duration": 607
+      "duration": 588
     },
     {
       "suite": "perf-test",
       "status": "pass",
-      "duration": 1070
+      "duration": 1051
     },
     {
       "suite": "ui-compliance-test",
       "status": "pass",
-      "duration": 112
+      "duration": 114
     },
     {
       "suite": "deploy-test",
       "status": "pass",
-      "duration": 80
+      "duration": 82
     },
     {
       "suite": "cache-test",
       "status": "pass",
-      "duration": 126
+      "duration": 117
     },
     {
       "suite": "benchmark-test",
@@ -158,17 +156,17 @@
     {
       "suite": "i18n-test",
       "status": "pass",
-      "duration": 63
+      "duration": 66
     },
     {
       "suite": "interaction-test",
       "status": "pass",
-      "duration": 37
+      "duration": 32
     },
     {
       "suite": "security-e2e-test",
       "status": "pass",
-      "duration": 38
+      "duration": 39
     }
   ]
 }
