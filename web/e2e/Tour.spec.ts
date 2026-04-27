@@ -232,7 +232,10 @@ test.describe('Tour/Onboarding', () => {
       await page.goto('/')
       await page.setViewportSize({ width: 375, height: 667 })
 
-      await expect(page.getByTestId('dashboard-page')).toBeVisible({ timeout: 10000 })
+      // Webkit may need additional time after viewport resize to re-layout
+      // (#nightly-playwright).
+      const RESPONSIVE_TIMEOUT_MS = 15_000
+      await expect(page.getByTestId('dashboard-page')).toBeVisible({ timeout: RESPONSIVE_TIMEOUT_MS })
     })
 
     test('adapts to tablet viewport', async ({ page }) => {

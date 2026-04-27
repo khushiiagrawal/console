@@ -263,8 +263,9 @@ test.describe('Sidebar Navigation', () => {
         return
       }
 
-      // Click Add more
-      await addMoreBtn.click()
+      // Click Add more — force-click on webkit where CSS transitions can
+      // cause actionability checks to stall (#nightly-playwright).
+      await addMoreBtn.click({ force: true })
 
       // Modal should appear
       await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 })

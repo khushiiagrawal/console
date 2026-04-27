@@ -118,11 +118,18 @@ test.describe('Navbar responsive layout', () => {
     // CSS transitions are settling. Wait for visibility first, then force
     // click to bypass the stability check (#nightly-playwright).
     await expect(overflowBtn).toBeVisible()
+    // Small settle delay for webkit — the page/context can close if the
+    // click fires while layout is still in progress (#nightly-playwright).
+    const SETTLE_MS = 500
+    await page.waitForTimeout(SETTLE_MS)
     await overflowBtn.click({ force: true })
 
-    // At least one item from the lg-hidden group should now be visible
+    // At least one item from the lg-hidden group should now be visible.
+    // Use a generous timeout — the overflow panel animates in and webkit
+    // can be slow to paint after a forced click.
+    const PANEL_TIMEOUT_MS = 10_000
     const panel = page.locator('.fixed.bg-card').last()
-    await expect(panel).toBeVisible()
+    await expect(panel).toBeVisible({ timeout: PANEL_TIMEOUT_MS })
   })
 
   test('search bar is in main nav bar at sm+ (640px)', async ({ page }) => {
