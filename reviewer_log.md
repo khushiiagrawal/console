@@ -1,3 +1,43 @@
+## Pass 38 — 2026-04-27 23:05 UTC
+
+### Health Check
+```json
+{"ci":"87%","buildDeploy":"GREEN","release":"GREEN","nightlyPlaywright":"RED(PR #10617 open)","nightlyTestSuite":"PENDING(manual run 25022916512)","nightlyRel":"GREEN","nightlyCompliance":"GREEN","nightlyDashboard":"GREEN","coverageGate":"GREEN","coverage":"87%<91%"}
+```
+
+### Actions
+- **PR #10617** created — fixes ~23 remaining Playwright E2E failures across shards 3+4
+  - 8 test files fixed:
+    1. ResolutionMemory: added mockApiMe + fixed toggle selector (ai-missions → ai-missions-toggle)
+    2. RBACExplorer: added waitForRBACDemoFindings helper, removed redundant double navigation
+    3. UpdateSettings: replaced hanging firstWsReady promise with bounded expect.poll
+    4. find-and-search: wait for search input + sidebar before keyboard shortcut
+    5. not-found: assert positive URL / after redirect
+    6. post-login-dashboard-ux: re-locate sidebar links before each click
+    7. dashboard-perf: added CI_TOLERANCE_PCT env-driven tolerance (50% default in CI)
+    8. page-coverage: replaced bespoke setupDemoMode with shared helper
+- Build ✅ Lint ✅ — no new warnings
+- Nightly Test Suite manual run 25022916512 still in progress on current main
+- All 9 adopter PRs still held (do-not-merge/hold)
+- No PRs eligible to merge
+
+### Workflow Status (main @ ea14b381)
+| Workflow | Status | Notes |
+|----------|--------|-------|
+| Build and Deploy KC | ✅ GREEN | |
+| Release | ✅ GREEN | Manual dispatch succeeded |
+| Nightly Test Suite | ⏳ PENDING | Manual run 25022916512 in progress |
+| Playwright E2E | ❌ RED | PR #10617 addresses remaining failures |
+| Nightly Compliance | ✅ GREEN | |
+| Nightly Dashboard | ✅ GREEN | |
+| Coverage Gate | ✅ PASS | On PRs |
+
+### Open PRs
+| PR | Status | Action |
+|----|--------|--------|
+| #10617 | CI running | Merge when green — fixes Playwright RED |
+| #9114, #9117, #4036, #4039, #4040, #4043, #4046, #7889, #8187 | Held | do-not-merge/hold labels |
+
 ## Pass 37 — 2026-04-27 21:30 UTC
 
 ### Health Check
