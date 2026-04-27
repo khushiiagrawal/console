@@ -1,3 +1,71 @@
+## Pass 35 — 2026-04-27 20:10 UTC
+
+### Health Check
+```json
+{"ci":"RED","buildDeploy":"RED","goTests":"RED","startupSmoke":"RED","authSmoke":"RED(intermittent)","consoleSmoke":"RED","nightlyPlaywright":"RED(webkit)","nightlyTestSuite":"RED","nightlyRel":"RED(rateLimit)","coverageGate":"GREEN","postMergeVerify":"GREEN","coverage":"89%<91%"}
+```
+
+**Root Cause:** Two cascading failures on main after PRs #10543/#10550 bumped `k8s.io/api` + `apimachinery` to v0.36.0 without matching `client-go` and `apiextensions-apiserver`:
+
+1. **k8s dependency mismatch** — `client-go@v0.35.4` imports packages removed from `k8s.io/api@v0.36.0` (`autoscaling/v2beta1`, `autoscaling/v2beta2`, `scheduling/v1alpha1`). Breaks `go build`, `go test`, and all CI that compiles Go.
+2. **Dockerfile Go 1.25 → 1.26** — `go.mod` requires `go 1.26.0` but Dockerfile used `golang:1.25-alpine`. Docker builds fail at `go mod download`.
+
+### Actions
+- Identified root cause across 6+ failing workflows (Build and Deploy KC, Go Tests, Startup Smoke, Auth Login Smoke, Console App Smoke, Post-Merge Build Verification)
+- PR #10606 already existed with go.mod fix (client-go + apiextensions-apiserver → v0.36.0)
+- **Pushed Dockerfile fix** (Go 1.25→1.26) to PR #10606 branch (`fe952b78c`)
+- PR #10606 CI results (before Dockerfile fix): Go Tests ✅, fullstack-smoke ✅, cross-platform builds ✅, Docker builds ❌
+- Updated PR #10606 description to include Dockerfile fix and link #10599
+- Verified locally: `go build ./...` ✅, `go test ./...` ✅ (all packages pass)
+- All workflow GO_VERSION env vars already at 1.26 (PR #10593 merged earlier)
+
+### Workflow Status (latest on main, commit 424ffd0)
+| Workflow | Status | Root Cause |
+|----------|--------|------------|
+| Build and Deploy KC | ❌ FAIL | k8s dep mismatch + Dockerfile Go 1.25 |
+| Go Tests | ❌ FAIL | k8s dep mismatch |
+| Startup Smoke | ❌ FAIL | Dockerfile Go 1.25 (Docker build) |
+| Auth Login Smoke | ❌ FAIL (intermittent) | Go build failure cascading |
+| Console App Smoke | ❌ FAIL | k8s dep mismatch (rewards classifier) |
+| Post-Merge Verify | ✅ PASS | Playwright-only (no Go compile) |
+| Coverage Gate | ✅ PASS | Frontend-only |
+| Playwright Nightly | ❌ FAIL | 13 webkit-only timeouts (unrelated to Go) |
+| Nightly Test Suite | ❌ FAIL | Issues #10435/#10436 (pre-existing) |
+| Release | ❌ FAIL | GitHub API secondary rate limit (transient) |
+
+### Playwright Nightly (webkit)
+- 162 passed, 13 failed, 8 flaky — **webkit-only** timeouts
+- Failures in: Sidebar navigation, Clusters page, Dashboard card management, Events refresh
+- Pattern: `locator.click: Test timeout of 30000ms exceeded` — webkit rendering latency
+- Not related to Go/Dockerfile issues — separate webkit stability problem
+
+### Release
+- goreleaser compare API → 403 secondary rate limit (transient)
+- Previous 4 runs before that succeeded — will auto-recover
+- PR #10580 (changelog github→git fix) already merged
+
+### Coverage
+- Coverage Gate: GREEN (PR checks pass)
+- Badge: 89% < 91% target
+- PR #10601 (29 useCached hook tests) just merged — may push coverage up
+
+### Open PRs
+- **#10606** — 🐛 k8s dep alignment + Dockerfile fix (CRITICAL, unblocks all RED workflows)
+- **#10553** — dependabot apiextensions-apiserver bump (superseded by #10606)
+- **#10552** — dependabot client-go bump (superseded by #10606)
+- **#10545** — dependabot prometheus/common bump (safe to merge after #10606)
+
+### Blockers
+- PR #10606 must merge to unblock Build and Deploy, Go Tests, Startup Smoke, Auth Smoke
+- Dockerfile fix just pushed — awaiting CI verification on PR #10606
+- Playwright webkit failures need separate investigation
+
+### Next
+- Monitor PR #10606 CI (Docker build should now pass with Dockerfile fix)
+- Merge #10606 once CI green → unblocks 6+ workflows
+- Close dependabot #10552/#10553 (superseded)
+- Merge #10545 (prometheus/common) after #10606
+- Investigate webkit Playwright timeouts separately
 
 ---
 
