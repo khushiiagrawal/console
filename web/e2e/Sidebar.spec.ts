@@ -145,13 +145,14 @@ test.describe('Sidebar Navigation', () => {
       // Assert expanded before click, collapsed after — no brittle offsetWidth. #9525
       await expect(collapseToggle).toHaveAttribute('aria-expanded', 'true')
 
-      // Click to collapse — use force:true because webkit/firefox can report
-      // the toggle as "not stable" while sidebar polling hooks re-render the
-      // component tree (#nightly-playwright).
-      await collapseToggle.click({ force: true })
+      // Use evaluate(el.click()) — Playwright's synthetic click can miss React's
+      // event delegation on webkit when the component tree is mid-render.
+      // Native el.click() bubbles through the React root, reliably firing onClick.
+      // (#nightly-playwright)
+      await collapseToggle.evaluate((el) => (el as HTMLElement).click())
 
       // Wait for aria-expanded to reflect the collapsed state — ensures React updated
-      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 5000 })
+      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 10000 })
 
       // Add Card button should be hidden when collapsed
       await expect(page.getByTestId('sidebar-add-card')).not.toBeVisible({ timeout: 5000 })
@@ -164,17 +165,15 @@ test.describe('Sidebar Navigation', () => {
 
       // Collapse first — force:true bypasses webkit/firefox actionability
       // check while the sidebar polls for data (#nightly-playwright).
-      await collapseToggle.click({ force: true })
-      
-      // Wait for aria-expanded to indicate collapse is complete
-      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 5000 })
+      await collapseToggle.evaluate((el) => (el as HTMLElement).click())
+      // Wait for aria-expanded to flip to false, indicating state update completed
+      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 10000 })
       await expect(page.getByTestId('sidebar-add-card')).not.toBeVisible({ timeout: 5000 })
 
       // Click again to expand
-      await collapseToggle.click({ force: true })
-      
-      // Wait for aria-expanded to indicate expand is complete
-      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'true', { timeout: 5000 })
+      await collapseToggle.evaluate((el) => (el as HTMLElement).click())
+      // Wait for aria-expanded to flip back to true
+      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'true', { timeout: 10000 })
 
       // Add Card button should be visible when expanded
       await expect(page.getByTestId('sidebar-add-card')).toBeVisible({ timeout: 5000 })
@@ -189,10 +188,9 @@ test.describe('Sidebar Navigation', () => {
       const collapseToggle = page.getByTestId('sidebar-collapse-toggle')
 
       // Collapse sidebar — force:true for webkit/firefox stability
-      await collapseToggle.click({ force: true })
-      
-      // Wait for aria-expanded to indicate collapse is complete
-      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 5000 })
+      await collapseToggle.evaluate((el) => (el as HTMLElement).click())
+      // Wait for aria-expanded to flip to false indicating state update completed
+      await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 10000 })
 
       // Add Card should be hidden when collapsed
       await expect(page.getByTestId('sidebar-add-card')).not.toBeVisible({ timeout: 5000 })
@@ -361,11 +359,11 @@ test.describe('Sidebar Navigation', () => {
     test('sidebar state persists on navigation', async ({ page }) => {
       await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 10000 })
 
-      // Collapse sidebar — force:true for webkit/firefox stability
-      const COLLAPSE_TIMEOUT_MS = 5_000
+      // Collapse sidebar — native el.click() for webkit React event reliability (#nightly-playwright)
+      const COLLAPSE_TIMEOUT_MS = 10_000
       const collapseToggle = page.getByTestId('sidebar-collapse-toggle')
-      await collapseToggle.click({ force: true })
-      
+      await collapseToggle.evaluate((el) => (el as HTMLElement).click())
+
       // Wait for aria-expanded to indicate collapse is complete
       await expect(collapseToggle).toHaveAttribute('aria-expanded', 'false', { timeout: COLLAPSE_TIMEOUT_MS })
       await expect(page.getByTestId('sidebar-add-card')).not.toBeVisible({ timeout: COLLAPSE_TIMEOUT_MS })

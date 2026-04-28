@@ -53,6 +53,9 @@ async function setupClustersTest(page: Page) {
   // where the auth redirect fires synchronously on script evaluation.
   // page.addInitScript() injects the snippet ahead of any page code (#9096).
   await page.addInitScript(() => {
+    // Clear the IndexedDB cache so stale data from previous tests doesn't bleed in.
+    // Tests run against the same origin so cache entries are shared across tests.
+    indexedDB.deleteDatabase('kc_cache')
     localStorage.setItem('token', 'test-token')
     localStorage.setItem('kc-demo-mode', 'false')
     localStorage.setItem('demo-user-onboarded', 'true')
@@ -227,11 +230,13 @@ test.describe('Clusters Page', () => {
       await healthyTab.click()
 
       // Both healthy clusters must be visible — the one with nodeCount>0 but healthy:false MUST appear
-      await expect(page.getByText('node-healthy-flag-false')).toBeVisible({ timeout: 5000 })
-      await expect(page.getByText('flag-healthy-no-nodes')).toBeVisible({ timeout: 5000 })
+      // Use .first() — cluster name can appear in both the list row and sidebar
+      // cluster status widget, triggering a strict-mode violation on webkit.
+      await expect(page.getByText('node-healthy-flag-false').first()).toBeVisible({ timeout: 5000 })
+      await expect(page.getByText('flag-healthy-no-nodes').first()).toBeVisible({ timeout: 5000 })
 
       // The unhealthy cluster must NOT appear in the Healthy tab
-      await expect(page.getByText('truly-unhealthy')).not.toBeVisible()
+      await expect(page.getByText('truly-unhealthy').first()).not.toBeVisible()
     })
 
     test('Unhealthy stat count matches clusters shown after clicking Unhealthy tab', async ({ page }) => {
@@ -271,8 +276,9 @@ test.describe('Clusters Page', () => {
       await unhealthyTab.click()
 
       // Only the truly unhealthy cluster should appear
-      await expect(page.getByText('unhealthy-no-nodes')).toBeVisible({ timeout: 5000 })
-      await expect(page.getByText('healthy-cluster')).not.toBeVisible()
+      // Use .first() — name may appear in both list row and sidebar cluster status widget.
+      await expect(page.getByText('unhealthy-no-nodes').first()).toBeVisible({ timeout: 5000 })
+      await expect(page.getByText('healthy-cluster').first()).not.toBeVisible()
     })
   })
 })

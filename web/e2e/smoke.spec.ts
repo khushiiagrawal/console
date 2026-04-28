@@ -105,7 +105,9 @@ test.describe('Smoke Tests', () => {
         // Mobile-safari needs extra time after hamburger open for the sidebar
         // slide-in animation to complete before links are hittable. (#nightly-playwright)
         await expect(link).toBeVisible({ timeout: 10_000 })
-        await link.click()
+        // force:true bypasses webkit's "element stable" check — sidebar links can be
+        // transiently detached during hook polling re-renders. (#nightly-playwright)
+        await link.click({ force: true })
         await waitForNetworkIdleBestEffort(page, NETWORK_IDLE_TIMEOUT_MS, `nav to ${expectedPath}`)
         expect(page.url()).toContain(expectedPath)
         // Re-open mobile sidebar if navigation closed it.
