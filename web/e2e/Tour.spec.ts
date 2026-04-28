@@ -46,9 +46,12 @@ async function setupTourTest(page: Page, tourCompleted: boolean = true) {
   // parsed and executed scripts, which is too late for webkit/Safari where the
   // auth redirect fires synchronously on script evaluation.
   // page.addInitScript() injects the snippet ahead of any page code (#9096).
+  // kc-demo-mode=true ensures the dashboard renders immediately from the demo
+  // fallback rather than waiting for API data (avoids loading skeleton timeout).
   const completed = tourCompleted
   await page.addInitScript((isCompleted: boolean) => {
     localStorage.setItem('token', 'test-token')
+    localStorage.setItem('kc-demo-mode', 'true')
     localStorage.setItem('demo-user-onboarded', 'true')
     if (isCompleted) {
       localStorage.setItem('kubestellar-console-tour-completed', 'true')

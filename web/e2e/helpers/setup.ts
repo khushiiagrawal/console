@@ -169,23 +169,26 @@ export async function mockApiFallback(page: Page) {
     })
   })
 
-  // Return valid active-users data so useActiveUsers stops re-rendering on every poll.
-  // The catch-all returns {} which produces data.activeUsers=undefined → Math.max(undefined)=NaN
-  // → NaN !== NaN is always true → dataChanged=true on every poll → constant re-renders → DOM
-  // detachment flakiness in webkit/firefox.
-  await page.route('**/api/active-users', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ activeUsers: 1, totalConnections: 1 }),
-    })
-  )
-
+  // IMPORTANT: Playwright matches routes in REVERSE registration order (last registered = first matched).
+  // Register the catch-all FIRST (lowest priority) so the active-users specific mock below
+  // overrides it. Previously the catch-all was registered last and intercepted /api/active-users
+  // before the specific mock, returning {} → Number.isFinite(undefined)=false → error/retry
+  // re-render cycles in Firefox/webkit causing DOM instability.
   await page.route('**/api/**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({}),
+    })
+  )
+
+  // Registered AFTER the catch-all → higher priority. Trailing * matches query params too.
+  // Returns valid data so useActiveUsers stays stable (no error state / re-renders).
+  await page.route('**/api/active-users*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ activeUsers: 1, totalConnections: 1 }),
     })
   )
 }
