@@ -1011,3 +1011,56 @@ Audited all 8 open issues in `kubestellar/console`. Verified relevance, added tr
 
 **Status**: Awaiting validation run #25070521226 results.
 
+---
+
+## Pass 51 — 2026-04-28 — KICK: RED nightlyPlaywright + RED nightly fix
+
+**Trigger**: Supervisor KICK — nightly=RED, nightlyPlaywright=RED
+
+### Investigations
+
+| Indicator | Status | SHA | Finding |
+|-----------|--------|-----|---------|
+| nightly=RED | Run #25071307267 | 02a0c958 | Unit-test regression: wsAuth mock → fixed in PR #10775 (merged as a3f7b6ae) |
+| nightlyPlaywright=RED | Run #25076950861 | 9096d17a | webkit: 7 hard failures, 4 flaky |
+
+### Root Causes Found
+
+**nightly=RED**: Unit-test regression already fixed by `a3f7b6ae`. New nightly
+run #25077023094 on `4096bdd6` in-progress (pre-fix SHA — may still fail).
+
+**nightlyPlaywright=RED (webkit)**:
+- Sidebar 137/160/183: `click({force:true})` doesn't trigger React's onClick via
+  Playwright's synthetic event path on webkit. `aria-expanded` stays "true" for
+  full 5–10s window.
+- Clusters 82: IndexedDB cache `kc_cache` polluted with stale data from prior test
+  runs (tests share same origin, cache persists across tests).
+- Clusters 186/237: `getByText()` strict-mode violation — cluster names appear in
+  both main list rows and sidebar cluster status widget (3 matches vs 1 expected).
+- smoke 64: Sidebar `<a>` links transiently detached from DOM during polling
+  re-renders, failing webkit's element-stability check.
+
+### Fixes Applied
+
+| File | Fix |
+|------|-----|
+| `web/e2e/Sidebar.spec.ts` | `click({force:true})` → `evaluate(el=>el.click())` on all 4 collapse uses; aria-expanded timeout 5s→10s |
+| `web/e2e/Clusters.spec.ts` | `addInitScript` adds `indexedDB.deleteDatabase('kc_cache')` before localStorage seed |
+| `web/e2e/Clusters.spec.ts` | All cluster-name `getByText()` assertions → `.first()` |
+| `web/e2e/smoke.spec.ts` | `link.click()` → `link.click({force:true})` in navbar navigation test |
+
+**PR #10779** (`fix/add-status-card-tests`): Rebased onto `5f61a89ff` main HEAD.
+`needs-rebase` label removed. CI running on `fee4c7b97`.
+
+**Playwright nightly triggered**: Run #25078395182 on HEAD `5f61a89ff`.
+
+### CI State
+
+| Workflow | Run | Status |
+|----------|-----|--------|
+| Nightly Test Suite | #25077023094 (4096bdd6) | in_progress — pre-fix SHA |
+| Playwright Nightly | #25078395182 (5f61a89ff) | triggered — webkit fixes |
+| PR #10779 CI | fee4c7b97 | running |
+
+**Status**: Awaiting nightly run results. Webkit fixes pushed to main.
+
