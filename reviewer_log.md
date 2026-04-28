@@ -1122,3 +1122,69 @@ All 3 beads remain BLOCKED on V8CoverageProvider TTY EIO (coverage infra — no 
 
 **Status**: RED indicators fixed. PR #10779 merged. Monitoring PR #10781 & nightly runs. Ready to return to idle.
 
+
+---
+
+## Pass 53: Playwright RED RCA — Incomplete Test Fixes
+
+**Date**: 2026-04-28 21:45 UTC | **Main HEAD**: `47bfb0411`
+
+### URGENT RED Indicators
+- `nightly=RED` → **Root cause fixed by PR #10775** (unit-test regression)
+- `nightlyPlaywright=RED` → **Multiple issues found** (see below)
+
+### Playwright Nightly Run 54 Analysis
+
+**All 4 variants failed**: webkit, firefox, mobile-safari, mobile-chrome
+
+#### Issue #1: Cluster Name Strict-Mode Violation (FIXED ✅)
+- **Test**: `Clusters.spec.ts:85` — "shows cluster names from mock data"
+- **Error**: `getByText('prod-east')` resolved to 4 elements
+- **Root Cause**: Cluster names appear in main list + sidebar status widget
+- **Fix**: Added `.first()` to lines 91-93 (commit `47bfb0411`)
+- **Why Missed**: Pass 51 only fixed stats filter getByText calls (lines 235+), not initial visibility checks (line 91)
+
+#### Issue #2: Filter Tab Not Rendering (NEEDS INVESTIGATION ⏳)
+- **Test**: `Clusters.spec.ts:189` — "Healthy stat count matches clusters shown after clicking Healthy tab"
+- **Error**: `getByRole('button', { name: /Healthy \(2\)/ })` — element never appeared (20s timeout)
+- **Analysis**:
+  - Page loads (clusters-page testid visible), but filter tabs don't render
+  - Mock data is correct (3 clusters with 2 healthy)
+  - Firefox + webkit both affected → not webkit-specific
+- **Suspects**:
+  - ClusterStatsFilters component not rendering  
+  - Mock route registration issue (LIFO test override vs beforeEach setup)
+  - Browser-specific timing issue on tab render
+
+#### Issue #3: Dashboard Page Testid Collision (NEEDS INVESTIGATION ⏳)
+- **Error**: tests AIRecommendations/CardChat `getByTestId('dashboard-page')` resolved to 11 elements 
+- **Root Cause**: Multiple components use `data-testid="dashboard-page"` (found 13 instances in codebase)
+- **Suspects**:
+  - Drill-down modals opening + leaving their DOM elements
+  - Multiple page instances in same DOM (overlay stacking)
+  - Modal/drill-down not cleaning up testid on close
+
+### PR Status
+- ✅ PR #10779 merged (Sidebar fixes + status card tests)
+- ✅ PR #10781 merged (localhost auth exemption)
+- ✅ PR #10782 merged (spec_filter workflow input)
+
+### Actions Taken
+1. ✅ Fixed cluster name strict-mode violation (commit `47bfb0411`)
+2. ✅ Pushed fix to main
+3. ✅ Triggered targeted playwright run on current HEAD to validate Clusters.spec.ts fix
+4. 📋 Queued investigation into filter tab rendering and dashboard-page testid collision
+
+### CI Observations
+- **New workflow capability**: PR #10782 added `spec_filter` input to playwright workflow
+  - Enables targeted runs on specific test files (e.g., `spec_filter=web/e2e/Clusters.spec.ts`)
+  - Useful for debugging CI-only failures
+- **Coverage still at 89%** (no regression from Pass 51)
+
+### Next Steps
+- ⏳ **Monitor new playwright run** — wait for results of targeted Clusters.spec.ts test
+- 🔍 **If Clusters.spec.ts passes**: Investigate filter tab rendering in full nightly run
+- 🔍 **If issues persist**: RCA on mock route setup, component lifecycle, browser timing
+- 📋 **Dashboard-page testid**: Find and fix multiple element declarations
+
+**Status**: nightlyPlaywright RED being triaged. Cluster name fix in place. Awaiting validation run.
