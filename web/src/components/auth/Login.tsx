@@ -129,6 +129,28 @@ const OAUTH_ERROR_INFO: Record<string, OAuthErrorEntry> = {
       'Verify your GitHub OAuth app is not suspended or deleted',
       'Check https://www.githubstatus.com for service status',
     ] },
+  manifest_missing_code: {
+    title: 'GitHub App Setup Incomplete',
+    message: 'GitHub did not return a setup code. The app creation may have been cancelled.',
+    steps: [
+      'Click "Set up GitHub Sign-In" to try again',
+      'Make sure to click "Create GitHub App" on the GitHub confirmation page',
+    ] },
+  manifest_conversion_failed: {
+    title: 'GitHub App Setup Failed',
+    message: 'The console was unable to complete the GitHub App setup. The temporary code may have expired.',
+    steps: [
+      'Click "Set up GitHub Sign-In" to try again',
+      'Check your internet connection',
+      'If the problem persists, use the manual setup option instead',
+    ] },
+  manifest_already_configured: {
+    title: 'GitHub Sign-In Already Configured',
+    message: 'OAuth credentials are already set up. You can sign in directly.',
+    steps: [
+      'Click "Continue with GitHub" to sign in',
+      'If you need to reconfigure, remove existing credentials first',
+    ] },
   user_fetch_failed: {
     title: 'Could Not Retrieve GitHub Profile',
     message: 'Login succeeded but the console was unable to fetch your GitHub profile.',
@@ -517,16 +539,22 @@ export function Login() {
           )}
 
           {/* Two-button layout when OAuth is not configured:
-              primary "Sign in with GitHub" (links to setup) + secondary "Demo Mode" */}
+              primary "Sign in with GitHub" (one-click manifest flow) + secondary "Demo Mode" */}
           {showOAuthSetup && (
             <div className="space-y-3">
               <button
                 data-testid="github-setup-button"
-                onClick={() => setOauthSetupExpanded(true)}
+                onClick={() => { window.location.href = '/auth/manifest/setup' }}
                 className="w-full flex items-center justify-center gap-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-medium py-3 px-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:shadow-lg"
               >
                 <Github className="w-5 h-5" />
                 {t('login.setupGitHubSignIn')}
+              </button>
+              <button
+                onClick={() => setOauthSetupExpanded(!oauthSetupExpanded)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto block"
+              >
+                {oauthSetupExpanded ? t('login.hideManualSetup') : t('login.showManualSetup')}
               </button>
               <button
                 data-testid="demo-mode-button"
