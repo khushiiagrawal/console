@@ -365,6 +365,56 @@ All card data hooks MUST use `useCache()` from `lib/cache/index.ts`. This provid
 - **Extend existing:** Adding a field to an existing API response or a filter to existing data
 - **Never:** Don't create a hook that wraps a single `useState` — just use `useState` directly
 
+### createCachedHook Factory (Preferred for Simple Hooks)
+
+For hooks that are pure passthroughs to `useCache()` — no parameters, no post-processing, no extra return fields — use the `createCachedHook` factory instead of writing the hook by hand. It eliminates ~200 lines of boilerplate per hook.
+
+**Location:** `lib/cache/createCachedHook.ts` (re-exported from `lib/cache/index.ts`)
+
+**Usage:**
+```tsx
+import { createCachedHook } from '@/lib/cache'
+
+// 1. Define your types and demo data
+interface FooStatus { healthy: boolean; count: number }
+const INITIAL: FooStatus = { healthy: false, count: 0 }
+const DEMO: FooStatus = { healthy: true, count: 42 }
+
+// 2. Define your fetcher
+async function fetchFoo(): Promise<FooStatus> {
+  const resp = await fetch('/api/foo/status', { signal: AbortSignal.timeout(FETCH_DEFAULT_TIMEOUT_MS) })
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return resp.json()
+}
+
+// 3. Export the hook (one line!)
+export const useCachedFoo = createCachedHook<FooStatus>({
+  key: 'foo-status',
+  initialData: INITIAL,
+  demoData: DEMO,
+  fetcher: fetchFoo,
+})
+```
+
+**Config options:**
+| Option | Required | Default | Purpose |
+|--------|----------|---------|---------|
+| `key` | ✅ | — | Unique cache key |
+| `initialData` | ✅ | — | Data before first fetch |
+| `fetcher` | ✅ | — | Async function returning `T` |
+| `demoData` | — | — | Static demo fallback |
+| `getDemoData` | — | — | Dynamic demo data factory (e.g., fresh timestamps) |
+| `category` | — | `'default'` | Refresh interval category |
+| `persist` | — | `true` | Whether to persist to SQLite/IndexedDB |
+
+**When NOT to use the factory:**
+- Hook needs parameters (e.g., cluster name, namespace)
+- Hook post-processes data after fetch (aggregation, filtering)
+- Hook returns extra fields beyond the standard `CachedHookResult<T>`
+- Hook composes multiple `useCache` calls
+
+**Existing hooks using the factory:** `useCachedThanosStatus`, `useCachedVitess`, `useCachedLonghorn`, `useCachedOtel`.
+
 ---
 
 ## Styling System
