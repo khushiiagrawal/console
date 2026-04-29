@@ -1152,7 +1152,7 @@ func (h *FeedbackHandler) closeGitHubIssue(ctx context.Context, issueNumber int,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		if readErr != nil {
 			body = []byte("(failed to read response body)")
 		}
@@ -1191,7 +1191,7 @@ func (h *FeedbackHandler) addIssueComment(ctx context.Context, issueNumber int, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		if readErr != nil {
 			body = []byte("(failed to read response body)")
 		}

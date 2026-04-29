@@ -678,7 +678,7 @@ func (h *FeedbackHandler) postGitHubIssue(ctx context.Context, repoOwner, repoNa
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		if readErr != nil {
 			respBody = []byte("(failed to read response body)")
 		}
@@ -739,7 +739,7 @@ func (h *FeedbackHandler) postGitHubIssueViaProxy(ctx context.Context, repoOwner
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		return 0, "", fmt.Errorf("proxy returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -825,7 +825,7 @@ func (h *FeedbackHandler) uploadScreenshotToGitHub(repoOwner, repoName, requestI
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		return "", fmt.Errorf("GitHub Contents API returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -900,7 +900,7 @@ func (h *FeedbackHandler) addPRComment(ctx context.Context, request *models.Feat
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseBytes))
 		if readErr != nil {
 			body = []byte("(failed to read response body)")
 		}

@@ -477,7 +477,7 @@ func (h *BenchmarkHandlers) driveGetWithRetry(ctx context.Context, url string) (
 			continue
 		}
 		if resp.StatusCode == 403 || resp.StatusCode == 429 {
-			body, readErr := io.ReadAll(resp.Body)
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBenchmarkReportBytes))
 			if readErr != nil {
 				body = []byte("(failed to read response body)")
 			}
@@ -1020,7 +1020,7 @@ func (h *BenchmarkHandlers) listDriveFolder(ctx context.Context, folderID string
 
 		if resp.StatusCode != 200 {
 			var bodyStr string
-			if body, readErr := io.ReadAll(resp.Body); readErr == nil {
+			if body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBenchmarkReportBytes)); readErr == nil {
 				bodyStr = string(body)
 			}
 			resp.Body.Close()

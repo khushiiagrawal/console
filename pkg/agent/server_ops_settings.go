@@ -667,7 +667,7 @@ func validateClaudeKey(ctx context.Context, apiKey string) (bool, error) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		return false, nil // Invalid key - no error so it gets cached
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes))
 	if readErr != nil {
 		body = []byte("(failed to read response body)")
 	}
@@ -697,7 +697,7 @@ func validateOpenAIKey(ctx context.Context, apiKey string) (bool, error) {
 		// kc-agent startup (#7923). Matches validateClaudeKey behavior.
 		return false, nil
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes))
 	if readErr != nil {
 		body = []byte("(failed to read response body)")
 	}
@@ -744,7 +744,7 @@ func validateOpenRouterKey(ctx context.Context, apiKey string) (bool, error) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		return false, nil
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes))
 	if readErr != nil {
 		body = []byte("(failed to read response body)")
 	}
@@ -774,7 +774,7 @@ func validateGroqKey(ctx context.Context, apiKey string) (bool, error) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		return false, nil
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes))
 	if readErr != nil {
 		body = []byte("(failed to read response body)")
 	}
@@ -805,7 +805,7 @@ func validateGeminiKey(ctx context.Context, apiKey string) (bool, error) {
 		// kc-agent startup (#7923). Matches validateClaudeKey behavior.
 		return false, nil
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes))
 	if readErr != nil {
 		body = []byte("(failed to read response body)")
 	}

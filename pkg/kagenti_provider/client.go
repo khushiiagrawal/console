@@ -32,6 +32,7 @@ const (
 	defaultKagentiServiceScheme = "http"
 	defaultDirectAgentName      = "kagenti-agent"
 	defaultDirectAgentNamespace = "default"
+	maxKAgentResponseBytes      = 10 * 1024 * 1024 // 10 MiB
 )
 
 var (
@@ -239,7 +240,7 @@ func (c *KagentiClient) ListAgentsWithContext(ctx context.Context) ([]AgentInfo,
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxKAgentResponseBytes))
 			drainAndClose(resp.Body)
 			lastErr = fmt.Errorf("list agents at %s returned %d: %s", path, resp.StatusCode, string(body))
 			continue
@@ -294,7 +295,7 @@ func (c *KagentiClient) Discover(namespace, agentName string) (*AgentCard, error
 	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxKAgentResponseBytes))
 		return nil, fmt.Errorf("discover agent %s/%s returned %d: %s", namespace, agentName, resp.StatusCode, string(body))
 	}
 
@@ -341,7 +342,7 @@ func (c *KagentiClient) Invoke(ctx context.Context, namespace, agentName, messag
 				return resp.Body, nil
 			}
 
-			errBody, _ := io.ReadAll(resp.Body)
+			errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxKAgentResponseBytes))
 			drainAndClose(resp.Body)
 			lastErr = fmt.Errorf("direct invoke returned %d: %s", resp.StatusCode, string(errBody))
 		}
@@ -396,7 +397,7 @@ func (c *KagentiClient) Invoke(ctx context.Context, namespace, agentName, messag
 			return resp.Body, nil
 		}
 
-		errBody, _ := io.ReadAll(resp.Body)
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxKAgentResponseBytes))
 		drainAndClose(resp.Body)
 		lastErr = fmt.Errorf("kagenti invoke at %s returned %d: %s", url, resp.StatusCode, string(errBody))
 	}

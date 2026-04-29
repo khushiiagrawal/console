@@ -60,6 +60,9 @@ const (
 	// kcAgentProxyTimeout is the timeout for proxied requests to kc-agent.
 	kcAgentProxyTimeout = 30 * time.Second
 
+	// maxAgentProxyResponseBytes caps io.ReadAll on kc-agent proxy responses.
+	maxAgentProxyResponseBytes = 10 * 1024 * 1024 // 10 MiB
+
 	// apiDefaultBodyLimit is the per-route body-size limit enforced by the
 	// bodyGuard middleware on all API routes except feedback screenshot uploads.
 	apiDefaultBodyLimit = 1 * 1024 * 1024 // 1 MB — sufficient for JSON API requests
@@ -855,7 +858,7 @@ func (s *Server) setupRoutes() {
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxAgentProxyResponseBytes))
 		c.Set("Content-Type", resp.Header.Get("Content-Type"))
 		return c.Status(resp.StatusCode).Send(body)
 	})
