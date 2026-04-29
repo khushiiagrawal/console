@@ -72,7 +72,7 @@ export function HIPAACard() {
     authFetch('/api/compliance/hipaa/summary')
       .then(r => r.ok ? safeJson<Record<string, number>>(r) : null)
       .then(setData)
-      .catch((err: unknown) => { setError(err?.message || 'Failed to load'); console.error(err) })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : 'Failed to load'); console.error(err) })
       .finally(() => setIsLoading(false))
   }, [])
   return (
@@ -110,7 +110,7 @@ export function GxPCard() {
     authFetch('/api/compliance/gxp/summary')
       .then(r => r.ok ? safeJson<Record<string, unknown>>(r) : null)
       .then(setData)
-      .catch((err: unknown) => { setError(err?.message || 'Failed to load'); console.error(err) })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : 'Failed to load'); console.error(err) })
       .finally(() => setIsLoading(false))
   }, [])
   return (
@@ -152,7 +152,7 @@ export function BAACard() {
     authFetch('/api/compliance/baa/summary')
       .then(r => r.ok ? safeJson<Record<string, number>>(r) : null)
       .then(setData)
-      .catch((err: unknown) => { setError(err?.message || 'Failed to load'); console.error(err) })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : 'Failed to load'); console.error(err) })
       .finally(() => setIsLoading(false))
   }, [])
   return (

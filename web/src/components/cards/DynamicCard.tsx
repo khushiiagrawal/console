@@ -166,7 +166,7 @@ export function Tier1CardRuntime({ cardDefinition }: Tier1Props) {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setApiError(err.message)
+        setApiError(err instanceof Error ? err.message : String(err))
         setApiLoading(false)
       })
 
