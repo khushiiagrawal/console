@@ -583,9 +583,9 @@ describe('useClusterCapabilities', () => {
 
 describe('useDeployWorkload', () => {
   it('sends POST request with deploy payload', async () => {
-    const deployResults = [{ success: true, cluster: 'prod', message: 'Deployed' }]
+    const deployResult = { success: true, message: 'Deployed', deployedTo: ['prod'] }
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(deployResults), {
+      new Response(JSON.stringify(deployResult), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -606,7 +606,7 @@ describe('useDeployWorkload', () => {
       )
     })
 
-    expect(onSuccess).toHaveBeenCalledWith(deployResults)
+    expect(onSuccess).toHaveBeenCalledWith(deployResult)
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBeNull()
   })
@@ -642,6 +642,40 @@ describe('useDeployWorkload', () => {
     expect(result.current.error).toBeDefined()
     expect(result.current.error!.message).toBe('Cluster unreachable')
   })
+
+  it('throws error when response is 200 OK but success is false', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: false, error: 'Logic failure' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    const { useDeployWorkload } = await importFresh()
+    const onError = vi.fn()
+    const onSuccess = vi.fn()
+
+    const { result } = renderHook(() => useDeployWorkload())
+    await act(async () => {
+      try {
+        await result.current.mutate(
+          {
+            workloadName: 'api-server',
+            namespace: 'production',
+            sourceCluster: 'staging',
+            targetClusters: ['prod'],
+          },
+          { onError, onSuccess }
+        )
+      } catch {
+        // expected
+      }
+    })
+
+    expect(onError).toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(result.current.error).toBeDefined()
+    expect(result.current.error!.message).toBe('Logic failure')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -650,9 +684,9 @@ describe('useDeployWorkload', () => {
 
 describe('useScaleWorkload', () => {
   it('sends scale request and calls onSuccess', async () => {
-    const scaleResults = [{ success: true, cluster: 'prod', message: 'Scaled to 5' }]
+    const scaleResult = { success: true, message: 'Scaled to 5' }
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(scaleResults), {
+      new Response(JSON.stringify(scaleResult), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -668,7 +702,7 @@ describe('useScaleWorkload', () => {
       )
     })
 
-    expect(onSuccess).toHaveBeenCalledWith(scaleResults)
+    expect(onSuccess).toHaveBeenCalledWith(scaleResult)
     expect(result.current.isLoading).toBe(false)
   })
 
@@ -690,6 +724,35 @@ describe('useScaleWorkload', () => {
     expect(result.current.error).toBeInstanceOf(Error)
     expect(result.current.error!.message).toBe('Unknown error')
   })
+
+  it('throws error when response is 200 OK but success is false', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: false, error: 'Scaling logic failure' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    const { useScaleWorkload } = await importFresh()
+    const onError = vi.fn()
+    const onSuccess = vi.fn()
+
+    const { result } = renderHook(() => useScaleWorkload())
+    await act(async () => {
+      try {
+        await result.current.mutate(
+          { workloadName: 'api-server', namespace: 'production', replicas: 5 },
+          { onError, onSuccess }
+        )
+      } catch {
+        // expected
+      }
+    })
+
+    expect(onError).toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(result.current.error).toBeDefined()
+    expect(result.current.error!.message).toBe('Scaling logic failure')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -699,7 +762,10 @@ describe('useScaleWorkload', () => {
 describe('useDeleteWorkload', () => {
   it('sends POST to kc-agent /workloads/delete and calls onSuccess', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+      new Response(JSON.stringify({ success: true, message: 'Deleted' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
     )
     const { useDeleteWorkload } = await importFresh()
     const onSuccess = vi.fn()
@@ -774,6 +840,35 @@ describe('useDeleteWorkload', () => {
     })
 
     expect(result.current.error!.message).toBe('Failed to delete workload')
+  })
+
+  it('throws error when response is 200 OK but success is false', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: false, error: 'Deletion logic failure' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    const { useDeleteWorkload } = await importFresh()
+    const onError = vi.fn()
+    const onSuccess = vi.fn()
+
+    const { result } = renderHook(() => useDeleteWorkload())
+    await act(async () => {
+      try {
+        await result.current.mutate(
+          { cluster: 'prod', namespace: 'production', name: 'api-server' },
+          { onError, onSuccess }
+        )
+      } catch {
+        // expected
+      }
+    })
+
+    expect(onError).toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(result.current.error).toBeDefined()
+    expect(result.current.error!.message).toBe('Deletion logic failure')
   })
 })
 

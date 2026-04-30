@@ -65,8 +65,11 @@ export interface DeployRequest {
 
 export interface DeployResult {
   success: boolean
-  cluster: string
-  message: string
+  message?: string
+  deployedTo?: string[]
+  failedClusters?: string[]
+  dependencies?: { kind: string; name: string; action: string }[]
+  warnings?: string[]
 }
 
 export function authHeaders(): Record<string, string> {
@@ -340,7 +343,7 @@ export function useDeployWorkload() {
   const mutate = async (
     request: DeployRequest,
     options?: {
-      onSuccess?: (data: DeployResult[]) => void
+      onSuccess?: (data: DeployResult) => void
       onError?: (error: Error) => void
     }
   ) => {
@@ -362,6 +365,9 @@ export function useDeployWorkload() {
         throw new Error(errorData.error || 'Failed to deploy workload')
       }
       const result = await res.json()
+      if (result.success === false) {
+        throw new Error(result.error || result.message || 'Failed to deploy workload')
+      }
       options?.onSuccess?.(result)
       return result
     } catch (err: unknown) {
@@ -390,7 +396,7 @@ export function useScaleWorkload() {
       replicas: number
     },
     options?: {
-      onSuccess?: (data: DeployResult[]) => void
+      onSuccess?: (data: DeployResult) => void
       onError?: (error: Error) => void
     }
   ) => {
@@ -412,6 +418,9 @@ export function useScaleWorkload() {
         throw new Error(errorData.error || 'Failed to scale workload')
       }
       const result = await res.json()
+      if (result.success === false) {
+        throw new Error(result.error || result.message || 'Failed to scale workload')
+      }
       options?.onSuccess?.(result)
       return result
     } catch (err: unknown) {
@@ -465,6 +474,10 @@ export function useDeleteWorkload() {
       if (!res.ok) {
         const errorData = await res.json()
         throw new Error(errorData.error || 'Failed to delete workload')
+      }
+      const result = await res.json()
+      if (result.success === false) {
+        throw new Error(result.error || result.message || 'Failed to delete workload')
       }
       options?.onSuccess?.()
     } catch (err: unknown) {
