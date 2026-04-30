@@ -1586,3 +1586,43 @@ KICK: nightlyPlaywright=RED, coverage=89%<91%
 ### Open Beads
 - `reviewer-m3s` (in_progress): awaiting PR #10997 merge + coverage-hourly ≥91% confirmation
 - `reviewer-1po`, `reviewer-oxr` (blocked): V8 coverage TTY infrastructure — unchanged
+
+---
+## Pass 68 — 2026-04-30T06:12Z
+
+**Trigger**: URGENT KICK — nightlyPlaywright=RED, coverage=89%<91%
+
+### GA4 Error Watch (30min window vs 7d baseline)
+- Latest GA4 monitor run (25149561647, 05:45) found: **"No error spikes above threshold (5) in the last 2h"** — GREEN.
+- Issue #10996 (agent_token_failure 4→17→60 trending) already open and assigned from prior pass.
+
+### Coverage RED Fix
+**Root cause**: 3 test shards (5/8/12) had worker timeouts causing incomplete coverage data, leaving merged total at 88.94% lines (below 91% threshold).
+
+Identified and fixed 3 hook bugs causing infinite re-render / event-loop hangs:
+
+1. **`web/src/hooks/mcp/crossplane.ts`** — `notifyListeners` defined as plain function inside component body; included in `useCallback([cluster, notifyListeners])` deps → `refetch` recreated every render → `useEffect([refetch])` fired every render → infinite render loop → `crossplane-coverage.test.ts` + `crossplane.test.ts` worker timeouts (shard 12). Fix: `useRef` pattern (same as `helm.ts`).
+
+2. **`web/src/hooks/mcp/buildpacks.ts`** — identical pattern → `buildpacks.test.ts` worker timeout (shard 8). Fix: `useRef` pattern.
+
+3. **`web/src/hooks/useStackDiscovery.ts`** — `clusters` prop (new array reference every render) in `useCallback([clusters, clustersKey])` deps → `refetch` unstable → `useEffect([refetch])` infinite loop in tests using `vi.advanceTimersByTimeAsync` → `useStackDiscovery-expand.test.ts` worker timeout (shard 5). Fix: `useRef` for clusters, depend on stable `clustersKey` string only.
+
+Commit: 6cb513405. CI running (Coverage Suite queued as part of push pipeline).
+
+### Playwright RED
+Not fixing (scanner owns). Issues already open: #10992, #10993, #10994.
+
+### Open PRs
+None (per hive actionable.json: prs.count=0).
+
+### Merged PR Copilot Scan
+Scanned PRs #10989, #10988, #10913, #10882, #10902:
+- **PR #10988**: Copilot flagged `MISSION_FETCH_TIMEOUT` now unused/ignored by `fetchWithRetry`. Filed **#11001**.
+- **PR #10989**: Storage key hardcoded, setup helper duplicated — style concerns, no functional bug.
+- **PR #10913**: Copilot concern about `createCachedHook` mock — already handled in `-funcs.test.ts` files (factory mock correctly returns a function, not `vi.fn()`). No action needed.
+- **PR #10882/#10902**: Low-confidence type improvement notes (suppressed by Copilot). No action.
+
+### Status
+- Coverage fix pushed; awaiting CI confirmation ≥91%.
+- GA4: GREEN (no new spikes).
+- Playwright RED: Issues filed, not fixing.
