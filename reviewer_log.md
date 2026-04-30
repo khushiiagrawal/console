@@ -1460,3 +1460,34 @@ KICK: nightlyPlaywright=RED, coverage=89%<91%
 ### Next Action
 - Monitor coverage suite for next nightly run — target ≥ 91%
 - Issue #10987 open for scanner/agents to address coverage gap
+
+## Pass 65 — 2026-04-30T05:00Z
+
+**Trigger**: KICK — RED indicators (nightlyPlaywright=RED, coverage=89%<91%)
+
+### GA4 Error Watch (30min vs 7d baseline)
+- GA4 Monitor last ran 2026-04-30T04:01Z → **clean** (no new anomalies above threshold)
+- `ksc_error` spike (issue #10957) resolved by PR #10990 (merged pass 63)
+- `agent_token_failure` trending anomaly → issue #10996 filed in pass 64 ✅
+- **GA4 status: GREEN**
+
+### Coverage RED Fix
+- **Root cause**: `DashboardCustomizer.test.tsx` vi.mock for `lucide-react` missing `Layout` and `LayoutDashboard` exports
+- `customizerNav.ts` imports both; vitest errors with `No "Layout" export is defined on the "lucide-react" mock`
+- **Fix**: Added `Layout: () => null` and `LayoutDashboard: () => null` to the mock
+- PR #10997 opened → Coverage Gate: **SUCCESS** on fix branch
+- Awaiting full CI before merge
+
+### Playwright RED
+- Issues already filed in pass 63: #10992 (Clusters tab filter Firefox+WebKit), #10993 (dashboard row count Firefox+WebKit), #10994 (RCE scan Firefox)
+- Scanner lane owns fixes — no new issues to file
+
+### Merge Activity
+- PR #10975 (🐛 Fix MSW mocks invalid JSON workload endpoints) — **already merged** by prior agent
+
+### Copilot Comments
+- 0 unaddressed
+
+### Open Beads
+- `reviewer-m3s` (in_progress): awaiting PR #10997 merge + coverage-hourly ≥91% confirmation
+- `reviewer-1po`, `reviewer-oxr` (blocked): V8 coverage TTY infrastructure — unchanged
