@@ -162,34 +162,47 @@ export async function fetchMissionContent(
   if (!sourcePath) return { mission: indexMission, raw: JSON.stringify(indexMission, null, 2) }
 
   const url = `/api/missions/file?path=${encodeURIComponent(sourcePath)}`
-  const response = await fetch(url, { signal: AbortSignal.timeout(MISSION_FILE_FETCH_TIMEOUT_MS) })
-  if (!response.ok) return { mission: indexMission, raw: JSON.stringify(indexMission, null, 2) }
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(MISSION_FILE_FETCH_TIMEOUT_MS) })
+    if (!response.ok) return { mission: indexMission, raw: JSON.stringify(indexMission, null, 2) }
 
-  const text = await response.text()
-  const parsed = JSON.parse(text)
+    const text = await response.text()
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      // Non-JSON response (e.g. 502 HTML error page) — fall back to index data
+      return { mission: indexMission, raw: text }
+    }
 
-  // Extract steps from the nested `mission` object (console-kb file format)
-  // Falls back to top-level fields if the nested structure isn't present
-  const nested = parsed.mission || {}
-  const fileMeta = parsed.metadata || {}
-  const merged: MissionExport = {
-    ...indexMission,
-    steps: nested.steps || parsed.steps || indexMission.steps,
-    uninstall: nested.uninstall || parsed.uninstall,
-    upgrade: nested.upgrade || parsed.upgrade,
-    troubleshooting: nested.troubleshooting || parsed.troubleshooting,
-    resolution: nested.resolution || parsed.resolution,
-    prerequisites: parsed.prerequisites || indexMission.prerequisites,
-    metadata: {
-      ...indexMission.metadata,
-      qualityScore: fileMeta.qualityScore,
-      maturity: fileMeta.maturity,
-      projectVersion: fileMeta.projectVersion,
-      sourceUrls: fileMeta.sourceUrls,
-    },
+    // Extract steps from the nested `mission` object (console-kb file format)
+    // Falls back to top-level fields if the nested structure isn't present
+    const nested = ((parsed as Record<string, unknown>).mission || {}) as Partial<MissionExport>
+    const topLevel = parsed as Partial<MissionExport>
+    const fileMeta = ((parsed as Record<string, unknown>).metadata || {}) as NonNullable<MissionExport['metadata']>
+    const merged: MissionExport = {
+      ...indexMission,
+      steps: nested.steps || topLevel.steps || indexMission.steps,
+      uninstall: nested.uninstall || topLevel.uninstall,
+      upgrade: nested.upgrade || topLevel.upgrade,
+      troubleshooting: nested.troubleshooting || topLevel.troubleshooting,
+      resolution: nested.resolution || topLevel.resolution,
+      prerequisites: topLevel.prerequisites || indexMission.prerequisites,
+      metadata: {
+        ...indexMission.metadata,
+        qualityScore: fileMeta.qualityScore,
+        maturity: fileMeta.maturity,
+        projectVersion: fileMeta.projectVersion,
+        sourceUrls: fileMeta.sourceUrls,
+      },
+    }
+
+    return { mission: merged, raw: text }
+  } catch (err) {
+    // Network error, timeout, or unexpected failure — fall back gracefully (#11033)
+    console.warn('[MissionBrowser] fetchMissionContent failed:', err)
+    return { mission: indexMission, raw: JSON.stringify(indexMission, null, 2) }
   }
-
-  return { mission: merged, raw: text }
 }
 
 /** Request timeout for the index fetch in milliseconds */
