@@ -269,3 +269,55 @@ Performance failures (demo mode 7166–7791ms > 6000ms threshold) noted but like
 - `reviewer-cb1`: in_progress (Scorecard workflow fix agent running)
 - `reviewer-1po`: blocked (V8CoverageProvider TTY infrastructure)
 - `reviewer-oxr`: blocked (same as above)
+
+## Pass 78 — 2026-04-30T11:36–11:55 UTC
+
+**Trigger:** KICK — RED indicators: nightlyPlaywright=RED, coverage=90%<91%
+
+### Pre-flight
+- `git pull /tmp/hive` — diverged histories (hive is separate repo); fetched FETCH_HEAD only
+- Beads: `reviewer-1po`, `reviewer-oxr` blocked (V8CoverageProvider TTY — ongoing)
+- Ready beads: none
+
+### GA4 Watch (30-min vs 7d baseline)
+- `ga4-anomalies.json` generated at 10:38 UTC — **NOMINAL, 0 anomalies** ✅
+- Prior anomalies #10996 (agent_token_failure) and #11006 (ksc_error spike) already filed
+- No new GA4 issues filed this pass
+
+### Coverage RED (90.1% < 91%) → FIX PUSHED
+- Coverage Suite run #1820 (11:24 UTC, post–useSelfUpgrade fix) confirmed: **90.1% lines**
+- useSelfUpgrade test fix (`vi.stubGlobal`) confirmed working (all 34 tests green in run #1820)
+- Root cause of remaining gap: formatter callbacks in TreeMap/TimeSeriesChart + fetcher body in useNightlyE2EData never invoked by existing tests (ECharts callbacks unreachable in jsdom)
+
+**Fix:**
+- Created `TreeMap-formatters.test.tsx` — 11 tests covering label/tooltip formatters via echarts-for-react mock (lines 77, 124, 145-159)
+- Created `TimeSeriesChart-formatters.test.tsx` — 9 tests covering yAxis/tooltip formatters (lines 66-78)
+- Created `useNightlyE2EData-fetcher.test.ts` — 11 tests directly invoking the fetcher callback via captured useCache config (lines 78-147)
+- All 31 new tests pass locally
+- Committed `37ab9253b` — `🌱 coverage: add formatter + fetcher tests for TreeMap, TimeSeriesChart, useNightlyE2EData`
+- Coverage Suite will re-run (path: `web/src/**` changed) → expected to reach ≥91%
+
+### Playwright RED → ALREADY FILED (scanner owns fix)
+- Issues filed in Pass 77: #11030, #11031, #11032, #11033
+- Issue filed previously: #11004, #11005, #11018, #11019, #11028
+- No new Playwright issues this pass (failures are same set)
+- **NOT touching Playwright fixes — scanner lane**
+
+### PRs to Merge
+- `merge-eligible.json`: count=0 — no eligible PRs
+
+### Copilot Comments Scan
+- `copilot-comments.json`: total_unaddressed=0 ✅
+
+### CI Health
+- Route & Modal Smoke Test: ✅
+- Auth Login Smoke Test: ✅
+- Coverage Suite #1820: ✅ (all 12 shards success)
+
+### Open Items for Next Pass
+- **Coverage**: Watch for Suite run #1821 — expect ≥91% from new formatter/fetcher tests
+- **Playwright RED**: #11030 (TypeError cascade), #11031 (GPU card), #11032 (Mission Control), #11033 (missions 502) — scanner in-progress
+- **#10996**: agent_token_failure trend 4→17→60 — outstanding
+- **#11006**: ksc_error 3.6× spike — outstanding
+- **#10985**: worker-active IndexedDB mirror test — outstanding
+- **reviewer-1po / reviewer-oxr**: blocked (V8CoverageProvider TTY infrastructure)
