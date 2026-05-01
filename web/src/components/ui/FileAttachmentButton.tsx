@@ -27,12 +27,6 @@ export function FileAttachmentButton({ onFileSelected, disabled = false, compact
     const file = e.target.files?.[0]
     if (file) {
       setSelectedFile(file)
-      // Placeholder: log file info and show toast
-      console.log('[FileAttachment] Selected file:', {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      })
       showToast(
         t('fileAttachment.comingSoon', { 
           defaultValue: `File attachment coming soon! Selected: ${file.name}` 
