@@ -540,10 +540,15 @@ var (
 	operatorCacheData  = make(map[string]*operatorCacheEntry)
 	operatorFetchGroup singleflight.Group
 	operatorEvictOnce  sync.Once
-	// operatorEvictDone is closed to stop the background evictor goroutine
-	// on server shutdown or in tests, preventing goroutine leaks.
-	operatorEvictDone = make(chan struct{})
+	// operatorEvictCtx / operatorEvictCancel provide context-based
+	// cancellation for the background evictor goroutine (#11259).
+	operatorEvictCtx    context.Context
+	operatorEvictCancel context.CancelFunc
 )
+
+func init() {
+	operatorEvictCtx, operatorEvictCancel = context.WithCancel(context.Background())
+}
 
 // ListOperators returns OLM-managed operators (ClusterServiceVersions)
 
@@ -558,7 +563,7 @@ func startOperatorCacheEvictor() {
 
 			for {
 				select {
-				case <-operatorEvictDone:
+				case <-operatorEvictCtx.Done():
 					return
 				case <-ticker.C:
 					operatorCacheMu.Lock()
@@ -582,10 +587,5 @@ func startOperatorCacheEvictor() {
 // StopOperatorCacheEvictor signals the background evictor goroutine to exit.
 // Safe to call multiple times. Intended for server shutdown and tests.
 func StopOperatorCacheEvictor() {
-	select {
-	case <-operatorEvictDone:
-		// Already closed
-	default:
-		close(operatorEvictDone)
-	}
+	operatorEvictCancel()
 }

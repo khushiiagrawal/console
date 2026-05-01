@@ -1252,11 +1252,6 @@ export function useDeployments(cluster?: string, namespace?: string): UseDeploym
 
     // Fall back to REST API
     try {
-      const params = new URLSearchParams()
-      if (cluster) params.append('cluster', cluster)
-      if (namespace) params.append('namespace', namespace)
-      const url = `${LOCAL_AGENT_HTTP_URL}/deployments?${params}`
-
       if (isDemoMode() || !LOCAL_AGENT_HTTP_URL) {
         setDeployments([])
         const now = new Date()
@@ -1266,6 +1261,11 @@ export function useDeployments(cluster?: string, namespace?: string): UseDeploym
         setTimeout(() => setIsRefreshing(false), MIN_REFRESH_INDICATOR_MS)
         return
       }
+
+      const params = new URLSearchParams()
+      if (cluster) params.append('cluster', cluster)
+      if (namespace) params.append('namespace', namespace)
+      const url = `${LOCAL_AGENT_HTTP_URL}/deployments?${params}`
 
       const response = await fetchWithRetry(url, {
         method: 'GET',
