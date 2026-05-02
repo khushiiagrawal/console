@@ -2,6 +2,7 @@ import { startTransition } from 'react'
 import { api, isBackendUnavailable } from '../../lib/api'
 import { reportAgentDataError, reportAgentDataSuccess, isAgentUnavailable } from '../useLocalAgent'
 import { isDemoMode, isNetlifyDeployment, isDemoToken, subscribeDemoMode } from '../../lib/demoMode'
+import { isInClusterMode } from '../useBackendHealth'
 import { kubectlProxy } from '../../lib/kubectlProxy'
 import { registerCacheReset, triggerAllRefetches } from '../../lib/modeTransition'
 import { resetFailuresForCluster, resetAllCacheFailures } from '../../lib/cache'
@@ -1018,6 +1019,12 @@ async function fetchClusterListFromAgent(): Promise<ClusterInfo[] | null> {
   // On localhost, always attempt to reach the agent — it may be running even if
   // AgentManager has not detected it yet.
   if (isNetlifyDeployment) return null
+
+  // In-cluster Helm deployments have no local kc-agent. Go directly to the
+  // backend API which authenticates via the pod's ServiceAccount. (#10XXX)
+  if (isInClusterMode()) {
+    return fetchClusterListFromBackendAPI()
+  }
 
   // When kagenti or kagent is the preferred backend, fetch clusters from the
   // backend API (/api/mcp/clusters) which works independently of kc-agent.

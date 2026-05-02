@@ -6,6 +6,7 @@
  */
 
 import { isBackendUnavailable } from '../api'
+import { isInClusterMode } from '../../hooks/useBackendHealth'
 import { fetchSSE } from '../sseClient'
 import { clusterCacheRef } from '../../hooks/mcp/clusterCacheRef'
 import { LOCAL_AGENT_HTTP_URL, STORAGE_KEY_TOKEN } from '../constants'
@@ -24,15 +25,22 @@ import { validateArrayResponse } from '../schemas/validate'
 const BACKEND_PREF_KEY = 'kc_agent_backend_preference'
 
 /**
- * Returns true when the user has selected kagenti or kagent as their
- * preferred backend.  In that mode data should be routed through the
- * Go backend (`/api/mcp/`) rather than the local kc-agent (port 8585).
- * See issue #10510.
+ * Returns true when data requests should be routed through the Go backend
+ * (`/api/mcp/`) rather than the local kc-agent (port 8585). This is the
+ * case when:
+ * - The user has explicitly selected kagenti or kagent as their preferred
+ *   backend via the agent selector (kc_agent_backend_preference), OR
+ * - The backend is running in-cluster (Helm deployment) — no local kc-agent
+ *   exists in-cluster; the Go backend has ServiceAccount access instead.
+ * See issues #10510, #10XXX.
  */
 export function isClusterModeBackend(): boolean {
   try {
     const pref = localStorage.getItem(BACKEND_PREF_KEY)
-    return pref === 'kagenti' || pref === 'kagent'
+    if (pref === 'kagenti' || pref === 'kagent') return true
+    // In-cluster Helm deployments have no local kc-agent. The Go backend
+    // authenticates via the pod's ServiceAccount — always route through it.
+    return isInClusterMode()
   } catch {
     return false
   }
@@ -163,13 +171,18 @@ function getReachableClusters(): string[] {
 
 // Fetch list of available clusters from backend (fallback)
 export async function fetchClusters(): Promise<string[]> {
-  // First check local agent data - faster and more accurate reachability
-  const localClusters = getReachableClusters()
-  if (localClusters.length > 0) {
-    return localClusters
+  // In-cluster mode: always fetch from the backend directly.
+  // The local kc-agent cluster cache (clusterCacheRef) is not populated
+  // in-cluster (no kc-agent WebSocket), and may hold stale demo cluster
+  // names from a previous session, causing incorrect fan-out.
+  if (!isInClusterMode()) {
+    const localClusters = getReachableClusters()
+    if (localClusters.length > 0) {
+      return localClusters
+    }
   }
 
-  // In cluster mode (kagenti/kagent), route through the Go backend so the
+  // In cluster mode (kagenti/kagent/in-cluster), route through the Go backend so the
   // request reaches the in-cluster service account instead of the absent
   // local kc-agent. (#10510)
   const fetcher = isClusterModeBackend() ? fetchBackendAPI : fetchAPI

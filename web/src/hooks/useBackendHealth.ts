@@ -3,6 +3,19 @@ import { LOCAL_AGENT_HTTP_URL } from '../lib/constants'
 
 export type BackendStatus = 'connected' | 'disconnected' | 'connecting'
 
+/** sessionStorage key to persist in-cluster detection across page reloads. */
+const SS_IN_CLUSTER_KEY = 'kc-in-cluster'
+
+/** Read in-cluster flag from sessionStorage synchronously (survives reload, not new tabs). */
+function readInClusterFromSession(): boolean {
+  try { return sessionStorage.getItem(SS_IN_CLUSTER_KEY) === 'true' } catch { return false }
+}
+
+/** Persist in-cluster detection so next page load doesn't need to wait for health check. */
+function writeInClusterToSession(): void {
+  try { sessionStorage.setItem(SS_IN_CLUSTER_KEY, 'true') } catch { /* ignore */ }
+}
+
 const POLL_INTERVAL = 15000 // Check every 15 seconds
 const FAILURE_THRESHOLD = 4 // Require 4 consecutive failures before showing "Connection lost"
 // Short timeout for health checks — a healthy backend responds in <100ms.
@@ -22,7 +35,10 @@ class BackendHealthManager {
     status: 'connecting',
     lastCheck: null,
     versionChanged: false,
-    inCluster: false,
+    // Initialize from sessionStorage so isInClusterMode() is true synchronously
+    // on page reload — avoids the timing race where first data fetch fires before
+    // the async /health response comes back.
+    inCluster: readInClusterFromSession(),
   }
   private listeners: Set<(state: BackendState) => void> = new Set()
   private pollInterval: ReturnType<typeof setInterval> | null = null
@@ -109,11 +125,13 @@ class BackendHealthManager {
             version !== this.initialVersion
           )
 
+          const inCluster = data.in_cluster === true
+          if (inCluster) writeInClusterToSession()
           this.setState({
             status: 'connected',
             lastCheck: new Date(),
             versionChanged,
-            inCluster: data.in_cluster === true,
+            inCluster,
           })
         } catch {
           // JSON parse failed — still mark as connected
@@ -199,5 +217,9 @@ export function isBackendConnected(): boolean {
 /** Returns true only when backend is connected AND running in-cluster (not localhost) */
 export function isInClusterMode(): boolean {
   const state = backendHealthManager.getState()
-  return state.status === 'connected' && state.inCluster
+  // Fast path: confirmed by live health check
+  if (state.status === 'connected' && state.inCluster) return true
+  // Synchronous fallback: use value persisted from a previous health check this session.
+  // This avoids the timing race on page reload where data fetches fire before /health responds.
+  return readInClusterFromSession()
 }
