@@ -726,6 +726,13 @@ export const CardWrapper = memo(function CardWrapper({
                 {!onRefresh && (isVisuallySpinning || effectiveIsLoading || forceSkeletonForOffline) && !effectiveIsFailed && (
                   <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" aria-hidden="true" />
                 )}
+                {/* Separator between failure badge and timestamp to prevent text concatenation (#11402) */}
+                {effectiveIsFailed && (() => {
+                  const effectiveLastUpdated = lastUpdated ?? childDataState?.lastUpdated
+                  return effectiveLastUpdated && !isVisuallySpinning && !effectiveIsLoading
+                    ? <span className="text-2xs text-muted-foreground/50 select-none" aria-hidden="true">·</span>
+                    : null
+                })()}
                 {/* Last updated indicator — use prop or child-reported timestamp.
                   * Still rendered when refresh is failing (#9104): hiding the
                   * timestamp on failure removed the only signal about data age,

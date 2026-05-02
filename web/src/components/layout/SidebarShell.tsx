@@ -481,7 +481,11 @@ export function SidebarShell({
             {renderIcon(item.icon, isCollapsed ? 'w-6 h-6' : 'w-5 h-5')}
             {!isCollapsed && (() => {
               const dashId = HREF_TO_DASHBOARD_ID[item.href]
-              const count = dashId ? DASHBOARD_CONFIGS[dashId]?.cards?.length : null
+              // Skip card count for alerts dashboard — the header AlertBadge already
+              // shows the actual firing alert count; showing the dashboard card count
+              // here (e.g. "5") creates a conflicting signal (#11404).
+              const count = dashId && item.href !== '/alerts'
+                ? DASHBOARD_CONFIGS[dashId]?.cards?.length : null
               const isGC = isGroundControlItem(item.href)
               return (
                 <span className="flex-1 min-w-0 flex items-center gap-1">
@@ -722,9 +726,10 @@ export function SidebarShell({
           </div>
         )}
 
-        {/* Viewer count + commit hash */}
+        {/* Viewer count + commit hash — separated from cluster status to prevent
+          * the commit SHA from visually merging with cluster counts (#11403). */}
         {features.activeUsers && !isCollapsed && (
-          <div className="mt-auto pt-4 flex flex-col items-center gap-1">
+          <div className="mt-auto pt-4 border-t border-border/30 flex flex-col items-center gap-1">
             <div className="flex items-center justify-center gap-2">
               <div
                 className="flex items-center gap-1 px-2 text-muted-foreground/60"
@@ -736,7 +741,7 @@ export function SidebarShell({
                 </span>
               </div>
               <span className="text-2xs text-muted-foreground/40 font-mono" title={`Commit: ${__COMMIT_HASH__}`}>
-                {__COMMIT_HASH__.substring(0, 7)}
+                #{__COMMIT_HASH__.substring(0, 7)}
               </span>
             </div>
             {/* Developer mode: warn when running an older commit, or show upgrade progress */}
