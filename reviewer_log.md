@@ -1,5 +1,44 @@
 # Reviewer Log
 
+## Pass 94 — 2026-05-02T01:10–01:25 UTC
+
+### Trigger
+KICK — nightlyPlaywright=RED. 46 unaddressed Copilot comments (3 HIGH). GA4 nominal.
+
+### RED Analysis
+
+**nightlyPlaywright=RED**: Same as Pass 93 — Issue #11348 open, scanner owns. No code fix required.
+
+### HIGH Copilot Comments — Disposition
+
+All 3 HIGH issues verified already fixed in previous passes:
+
+| PR | File | Issue | Status |
+|----|------|-------|--------|
+| #11318 | events.go:103 | `limit` echoed without clamping | ✅ Fixed in PR #11362 — `maxEventLimit` constant + clamp |
+| #11326 | drasi_proxy_test.go:25 | Hop-by-hop header not asserted stripped | ✅ Fixed in PR #11363 — `assert.Empty(Proxy-Authenticate)` |
+| #11355 | FeedbackModal.tsx:234 | `page_url` leaks OAuth params | ✅ Fixed in PR #11364 — `origin+pathname` only |
+
+### Medium Issues Fixed This Pass
+
+| PR | File | Fix |
+|----|------|-----|
+| #11318 | events_test.go | Added `TestEventGetEvents_QueryParams`, `TestEventGetEvents_LimitClamped` (verifies response `limit` ≤ maxEventLimit), `TestEventGetEvents_StoreError`; mock store now captures `since`/`limit`/`offset` |
+| #11318 | topology_test.go | Assert `metadata.serviceName` and `metadata.exported` on service node |
+| #11326 | setup_test.go | `gvrKindsToGVR` now takes `testing.TB`, calls `t.Fatalf` on miss — prevents silent zero-GVR queries |
+| #11326 | crds_test.go | Updated caller to pass `t` |
+
+### Commit
+`b55b23aae` 🌱 test: expand coverage for events query params, topology metadata, and GVR lookup safety — pushed to `fix/11334-startup-oauth-agent-build-pid`
+
+### GA4
+Nominal — no anomalies.
+
+### Outstanding
+- `fix/11334-startup-oauth-agent-build-pid`: CI running — merge when green
+- nightlyPlaywright RED: scanner owns — Issue #11348 open
+- PR #11375 (Playwright test fixes): scanner owns
+
 ## Pass 91 — 2026-05-01T19:20–19:36 UTC
 
 ### Trigger
