@@ -217,6 +217,19 @@ func (m *MultiClusterClient) InjectDynamicClient(contextName string, client dyna
 	m.dynamicClients[contextName] = client
 }
 
+// InjectRestConfig injects a rest config for a cluster (for testing)
+func (m *MultiClusterClient) InjectRestConfig(contextName string, config *rest.Config) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.configs == nil {
+		m.configs = make(map[string]*rest.Config)
+	}
+	m.configs[contextName] = config
+}
+
 // Reload reloads the kubeconfig from disk
 func (m *MultiClusterClient) Reload() error {
 	config, err := clientcmd.LoadFromFile(m.kubeconfig)
