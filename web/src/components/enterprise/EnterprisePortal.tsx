@@ -177,7 +177,7 @@ export default function EnterprisePortal() {
   const sections = ENTERPRISE_NAV_SECTIONS.filter((s) => s.id !== 'overview')
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div data-testid="enterprise-portal" className="p-6 max-w-7xl mx-auto">
       {/* Header with tip bar, auto-refresh, and refresh button */}
       <DashboardHeader
         title="Enterprise Compliance Portal"

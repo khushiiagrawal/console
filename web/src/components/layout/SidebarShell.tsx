@@ -466,6 +466,8 @@ export function SidebarShell({
           <>
           <NavLink
             to={item.href}
+            data-testid="sidebar-item"
+            data-test-label={item.label}
             onClick={() => emitSidebarNavigated(item.href)}
             onDoubleClick={(e) => handleDoubleClick(item, e)}
             onMouseEnter={() => prefetchDashboard(item.href)}
