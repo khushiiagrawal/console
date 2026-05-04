@@ -89,7 +89,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	mockStore.On("GetUser", testAdminUserID).Return(&models.User{
 		ID:   testAdminUserID,
 		Role: "admin",
-	}, nil)
+	}, nil).Maybe()
 
 	// Cluster-group CRUD handlers persist definitions to the store (#7013).
 	// Register permissive mocks so TestClusterGroupsCRUD doesn't panic when

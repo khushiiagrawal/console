@@ -184,32 +184,62 @@ func (m *MockStore) GetRecentEvents(ctx context.Context, userID uuid.UUID, since
 	return nil, nil
 }
 
-func (m *MockStore) CreateFeatureRequest(ctx context.Context, request *models.FeatureRequest) error      { return nil }
-func (m *MockStore) GetFeatureRequest(ctx context.Context, id uuid.UUID) (*models.FeatureRequest, error) { return nil, nil }
+func (m *MockStore) CreateFeatureRequest(ctx context.Context, request *models.FeatureRequest) error {
+	args := m.Called(request)
+	return args.Error(0)
+}
+func (m *MockStore) GetFeatureRequest(ctx context.Context, id uuid.UUID) (*models.FeatureRequest, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.FeatureRequest), args.Error(1)
+}
 func (m *MockStore) GetFeatureRequestByIssueNumber(ctx context.Context, issueNumber int) (*models.FeatureRequest, error) {
-	return nil, nil
+	args := m.Called(issueNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.FeatureRequest), args.Error(1)
 }
 func (m *MockStore) GetFeatureRequestByPRNumber(ctx context.Context, prNumber int) (*models.FeatureRequest, error) {
-	return nil, nil
+	args := m.Called(prNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.FeatureRequest), args.Error(1)
 }
 func (m *MockStore) GetUserFeatureRequests(ctx context.Context, userID uuid.UUID, limit, offset int) ([]models.FeatureRequest, error) {
-	return nil, nil
+	args := m.Called(userID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.FeatureRequest), args.Error(1)
 }
 func (m *MockStore) CountUserPendingFeatureRequests(ctx context.Context, userID uuid.UUID) (int, error) {
-	return 0, nil
+	args := m.Called(userID)
+	return args.Int(0), args.Error(1)
 }
 func (m *MockStore) GetAllFeatureRequests(ctx context.Context, limit, offset int) ([]models.FeatureRequest, error) {
 	return nil, nil
 }
 func (m *MockStore) UpdateFeatureRequest(ctx context.Context, request *models.FeatureRequest) error { return nil }
 func (m *MockStore) UpdateFeatureRequestStatus(ctx context.Context, id uuid.UUID, status models.RequestStatus) error {
-	return nil
+	args := m.Called(id, status)
+	return args.Error(0)
 }
-func (m *MockStore) CloseFeatureRequest(ctx context.Context, id uuid.UUID, closedByUser bool) error { return nil }
+func (m *MockStore) CloseFeatureRequest(ctx context.Context, id uuid.UUID, closedByUser bool) error {
+	args := m.Called(id, closedByUser)
+	return args.Error(0)
+}
 func (m *MockStore) UpdateFeatureRequestPR(ctx context.Context, id uuid.UUID, prNumber int, prURL string) error {
-	return nil
+	args := m.Called(id, prNumber, prURL)
+	return args.Error(0)
 }
-func (m *MockStore) UpdateFeatureRequestPreview(ctx context.Context, id uuid.UUID, previewURL string) error    { return nil }
+func (m *MockStore) UpdateFeatureRequestPreview(ctx context.Context, id uuid.UUID, previewURL string) error {
+	args := m.Called(id, previewURL)
+	return args.Error(0)
+}
 func (m *MockStore) UpdateFeatureRequestLatestComment(ctx context.Context, id uuid.UUID, comment string) error { return nil }
 
 func (m *MockStore) CreatePRFeedback(ctx context.Context, feedback *models.PRFeedback) error { return nil }
@@ -217,7 +247,10 @@ func (m *MockStore) GetPRFeedback(ctx context.Context, featureRequestID uuid.UUI
 	return nil, nil
 }
 
-func (m *MockStore) CreateNotification(ctx context.Context, notification *models.Notification) error { return nil }
+func (m *MockStore) CreateNotification(ctx context.Context, notification *models.Notification) error {
+	args := m.Called(notification)
+	return args.Error(0)
+}
 func (m *MockStore) GetUserNotifications(ctx context.Context, userID uuid.UUID, limit int) ([]models.Notification, error) {
 	return nil, nil
 }
@@ -312,7 +345,7 @@ func (m *MockStore) IncrementUserCoins(ctx context.Context, userID string, delta
 	}
 	for _, call := range m.ExpectedCalls {
 		if call.Method == "IncrementUserCoins" {
-			args := m.Called(ctx, userID, delta)
+			args := m.Called(userID, delta)
 			if args.Get(0) == nil {
 				return nil, args.Error(1)
 			}
@@ -330,7 +363,7 @@ func (m *MockStore) ClaimDailyBonus(ctx context.Context, userID string, bonusAmo
 	}
 	for _, call := range m.ExpectedCalls {
 		if call.Method == "ClaimDailyBonus" {
-			args := m.Called(ctx, userID, bonusAmount, minInterval, now)
+			args := m.Called(userID, bonusAmount, minInterval, now)
 			if args.Get(0) == nil {
 				return nil, args.Error(1)
 			}
@@ -384,7 +417,7 @@ func (m *MockStore) AddUserTokenDelta(ctx context.Context, userID string, catego
 	}
 	for _, call := range m.ExpectedCalls {
 		if call.Method == "AddUserTokenDelta" {
-			args := m.Called(ctx, userID, category, delta, agentSessionID)
+			args := m.Called(userID, category, delta, agentSessionID)
 			if args.Get(0) == nil {
 				return nil, args.Error(1)
 			}
@@ -427,7 +460,7 @@ func (m *MockStore) ConsumeOAuthState(ctx context.Context, state string) (bool, 
 	}
 	for _, call := range m.ExpectedCalls {
 		if call.Method == "ConsumeOAuthState" {
-			args := m.Called(ctx, state)
+			args := m.Called(state)
 			return args.Bool(0), args.Error(1)
 		}
 	}

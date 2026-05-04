@@ -90,6 +90,9 @@ func stripHTML(html string, maxLen int) string {
 	inTag := false
 	for _, r := range html {
 		if r == '<' {
+			if !inTag && result.Len() > 0 && result.String()[result.Len()-1] != ' ' {
+				result.WriteRune(' ')
+			}
 			inTag = true
 			continue
 		}
