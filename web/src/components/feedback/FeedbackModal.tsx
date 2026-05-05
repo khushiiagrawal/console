@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
-import { X, Bug, Lightbulb, Send, CheckCircle2, ExternalLink, ImagePlus, Trash2, Copy, Check, AlertTriangle, Loader2, Film, Keyboard } from 'lucide-react'
+import { X, Bug, Lightbulb, Send, CheckCircle2, ExternalLink, ImagePlus, Trash2, Copy, Check, AlertTriangle, Loader2, Film } from 'lucide-react'
 import { Linkedin } from '@/lib/icons'
 import { ConfirmDialog } from '../../lib/modals'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -38,7 +38,6 @@ interface FeedbackModalProps {
 }
 
 const DRAFT_KEY = 'feedback-modal-draft'
-const KEYBOARD_HINT_BADGE_CLASS = 'px-2 py-1 rounded-md bg-secondary/70 text-xs font-semibold leading-none text-foreground'
 
 interface DraftState {
   type: FeedbackType
@@ -668,23 +667,17 @@ export function FeedbackModal({ isOpen, onClose, initialType = 'feature' }: Feed
           )}
         </div>
         {/* Keyboard hints */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border/50 bg-secondary/10 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Keyboard className="w-4 h-4 text-purple-400" />
-            <span className="font-medium text-foreground/90">Keyboard shortcuts</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2">
-              <kbd className={KEYBOARD_HINT_BADGE_CLASS}>Esc</kbd>
-              <span>Close</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-t border-border/50 bg-secondary/20">
+          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <kbd className="px-1.5 py-0.5 rounded border border-border bg-secondary text-[10px] font-mono">Esc</kbd>
+            close
+          </span>
+          {!success && (
+            <span className="inline-flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm">
+              <kbd className="px-1.5 py-0.5 rounded border border-purple-500/30 bg-background/80 text-[10px] font-mono">{submitShortcutLabel}</kbd>
+              submit
             </span>
-            {!success && (
-              <span className="inline-flex items-center gap-2">
-                <kbd className={KEYBOARD_HINT_BADGE_CLASS}>{submitShortcutLabel}</kbd>
-                <span>Submit</span>
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>,
