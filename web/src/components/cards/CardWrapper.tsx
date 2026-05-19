@@ -18,6 +18,7 @@ import type { CardSkeletonProps } from '@/lib/cards/CardComponents'
 import { emitCardExpanded, emitCardRefreshed } from '../../lib/analytics'
 import { useMissions } from '../../hooks/useMissions'
 import { LOADING_TIMEOUT_MS, SKELETON_DELAY_MS, INITIAL_RENDER_TIMEOUT_MS, TICK_INTERVAL_MS, CARD_LOADING_TIMEOUT_MS, MIN_SKELETON_DISPLAY_MS } from '../../lib/constants/network'
+import { useTimeoutFlag, useConditionalTimeout } from '../../hooks/useTimeoutFlag'
 import { CardErrorFallback, CardFailureBanner } from './CardErrorFallback'
 import { CardLoadingState } from './CardLoadingState'
 import { CardMeta } from './CardMeta'
@@ -312,60 +313,21 @@ export const CardWrapper = memo(function CardWrapper({
   // Declared early so it can be used in the refresh animation effect below
   const [childDataState, setChildDataState] = useState<CardDataState | null>(null)
 
-  // Skeleton timeout: show skeleton for up to 5 seconds while waiting for card to report
-  // After timeout, assume card doesn't use reporting and show content
-  // IMPORTANT: Don't reset on childDataState change - this allows cached data to show immediately
-  const [skeletonTimedOut, setSkeletonTimedOut] = useState(checkIsDemoMode)
-  useEffect(() => {
-    // Only run timeout once on mount - don't reset when childDataState changes
-    // Cards with cached data will report hasData: true quickly, hiding skeleton
-    const timer = setTimeout(() => setSkeletonTimedOut(true), LOADING_TIMEOUT_MS)
-    return () => clearTimeout(timer)
-  }, []) // Empty deps - only run on mount
+  // Skeleton timeout: show skeleton for up to 5s while waiting for card to report.
+  // After timeout, assume card doesn't use reporting and show content.
+  const skeletonTimedOut = useTimeoutFlag(LOADING_TIMEOUT_MS, checkIsDemoMode())
 
-  // Skeleton delay: don't show skeleton immediately, wait a brief moment
-  // This prevents flicker when cache loads quickly from IndexedDB
-  const [skeletonDelayPassed, setSkeletonDelayPassed] = useState(checkIsDemoMode)
-  useEffect(() => {
-    const timer = setTimeout(() => setSkeletonDelayPassed(true), SKELETON_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, []) // Empty deps - only run on mount
+  // Skeleton delay: don't show skeleton immediately — prevents flicker when cache loads quickly from IndexedDB
+  const skeletonDelayPassed = useTimeoutFlag(SKELETON_DELAY_MS, checkIsDemoMode())
 
-  // Quick initial render timeout for cards that don't report state (static/demo cards)
-  // If a card hasn't reported state within 150ms, assume it rendered content immediately
-  // This prevents blank cards while still giving reporting cards time to report
-  const [initialRenderTimedOut, setInitialRenderTimedOut] = useState(checkIsDemoMode)
-  useEffect(() => {
-    const timer = setTimeout(() => setInitialRenderTimedOut(true), INITIAL_RENDER_TIMEOUT_MS)
-    return () => clearTimeout(timer)
-  }, []) // Empty deps - only run on mount
+  // Quick initial render timeout: if card hasn't reported state within 150ms, assume static/demo card
+  const initialRenderTimedOut = useTimeoutFlag(INITIAL_RENDER_TIMEOUT_MS, checkIsDemoMode())
 
-  // Minimum skeleton display duration guard (#5206): once the skeleton starts showing,
-  // keep it visible for at least MIN_SKELETON_DISPLAY_MS. This prevents the flicker
-  // where childDataState starts null (skeleton), then child reports state via
-  // useLayoutEffect causing a re-render that briefly shows content before the
-  // skeleton timeout completes (skeleton → content → skeleton → content).
-  const [minSkeletonElapsed, setMinSkeletonElapsed] = useState(checkIsDemoMode)
-  useEffect(() => {
-    const timer = setTimeout(() => setMinSkeletonElapsed(true), MIN_SKELETON_DISPLAY_MS)
-    return () => clearTimeout(timer)
-  }, []) // Empty deps - only run on mount
+  // Minimum skeleton display duration guard (#5206): prevents skeleton→content→skeleton flicker
+  const minSkeletonElapsed = useTimeoutFlag(MIN_SKELETON_DISPLAY_MS, checkIsDemoMode())
 
-  // Stuck loading guard: if a card reports isLoading:true but never updates,
-  // force it to exit loading state after CARD_LOADING_TIMEOUT_MS (30 seconds).
-  // This prevents cards from being permanently stuck in loading state due to
-  // interrupted renders, hook cancellation, or errors during data fetching.
-  const [cardLoadingTimedOut, setCardLoadingTimedOut] = useState(false)
-  useEffect(() => {
-    // Only start the timer when a card explicitly reports isLoading: true
-    if (childDataState?.isLoading) {
-      setCardLoadingTimedOut(false)
-      const timer = setTimeout(() => setCardLoadingTimedOut(true), CARD_LOADING_TIMEOUT_MS)
-      return () => clearTimeout(timer)
-    }
-    // Card is no longer loading — reset the flag
-    setCardLoadingTimedOut(false)
-  }, [childDataState?.isLoading])
+  // Stuck loading guard: force exit loading state after CARD_LOADING_TIMEOUT_MS (30s)
+  const cardLoadingTimedOut = useConditionalTimeout(childDataState?.isLoading ?? false, CARD_LOADING_TIMEOUT_MS)
 
   // Handle minimum spin duration for refresh button
   // Include both prop and context-reported refresh state
@@ -648,7 +610,8 @@ export const CardWrapper = memo(function CardWrapper({
   }, [onRefresh, cardType])
 
   const handleLoadingTimeoutRetry = useCallback(() => {
-    setCardLoadingTimedOut(false)
+    // cardLoadingTimedOut resets automatically via useConditionalTimeout when
+    // childDataState.isLoading toggles back to true on re-fetch
     onRefresh?.()
   }, [onRefresh])
 
